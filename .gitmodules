@@ -1,0 +1,3 @@
+[submodule "raspipe"]
+	path = raspipe
+	url = git@github.com:tansly/ceng435-raspipe.git
