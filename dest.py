@@ -11,7 +11,7 @@ while True:
     (dataFRouter, addrRouter) = destSocket.recvfrom(128)
     print('\nReceived message:\n', dataFRouter)
     #Create return sentence.
-    dataFRouter.upper()
-    destSocket.sendTo(dataFRouter, addrRouter)
+    dataFRouter = dataFRouter.decode().upper()
+    destSocket.sendto(dataFRouter.encode(), addrRouter)
 
 destSocket.close()
