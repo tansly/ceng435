@@ -9,11 +9,11 @@ destServerName = '10.10.3.2'
 #Port of Destination
 destServerPort = 26299 + 300
 
-#Listen to localServerPort and record the sentence.
+#Listen to localServerPort.
 localSocket = socket(AF_INET, SOCK_DGRAM)
 localSocket.bind(('10.10.2.2', localServerPort))
 
-#Initialize brokerSocket and connect to Broker.
+#Initialize destSocket and connect to Destination.
 destSocket = socket(AF_INET, SOCK_DGRAM)
 destSocket.connect((destServerName, destServerPort))
 
