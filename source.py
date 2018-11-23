@@ -8,4 +8,3 @@ index = 1
 sentence = chr(index) + 124 * 'a'
 clientSocket.send(sentence.encode())
 clientSocket.close()
-
