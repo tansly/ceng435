@@ -1,17 +1,27 @@
 from socket import*
 
-#Port of this server
+#Port of this server.
 localServerPort = 26299 + 300
 
-#Listen to localServerPort and record the sentence.
-destSocket = socket(AF_INET, SOCK_DGRAM)
-destSocket.bind(('10.10.3.2', localServerPort))
+#IP of router2
+routerServerName = '10.10.4.2'
+
+#Port of router2.
+routerServerPort = 26301 + 300
+
+#Initialize localSocket and listen to localServerPort.
+localSocket = socket(AF_INET, SOCK_DGRAM)
+localSocket.bind(('10.10.3.2', localServerPort))
+
+#Initialize routerSocket and connect to router2.
+routerSocket = socket(AF_INET, SOCK_DGRAM)
+routerSocket.connect((routerServerName, routerServerPort))
 
 while True:
-    (dataFRouter, addrRouter) = destSocket.recvfrom(128)
+    (dataFRouter, addrRouter) = localSocket.recvfrom(128)
     print('\nReceived message:\n', dataFRouter)
     #Create return sentence.
-    dataFRouter = dataFRouter.decode().upper()
-    destSocket.sendto(dataFRouter.encode(), addrRouter)
+    routerSocket.send(dataFRouter.upper())
 
-destSocket.close()
+localSocket.close()
+routerSocket.close()
