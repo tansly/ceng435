@@ -14,7 +14,7 @@ brokerSocket = socket(AF_INET, SOCK_DGRAM)
 brokerSocket.bind(('10.10.2.2', localServerPort))
 
 destSocket = socket(AF_INET, SOCK_DGRAM)
-destSocket.connect((serverNameDest,destServerPort))
+destSocket.connect((destServerName, destServerPort))
 
 while True:
     (dataFBroker, addrBroker) = brokerSocket.recvfrom(128)
