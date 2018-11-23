@@ -19,7 +19,7 @@ routerSocket.connect((routerServerName, routerServerPort))
 
 while True:
     (dataFRouter, addrRouter) = localSocket.recvfrom(128)
-    print('\nReceived message:\n', dataFRouter)
+    #print('\nReceived message:\n', dataFRouter)
     #Create return sentence.
     routerSocket.send(dataFRouter.upper())
 

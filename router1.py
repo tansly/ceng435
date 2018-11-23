@@ -19,7 +19,7 @@ destSocket.connect((destServerName, destServerPort))
 
 while True:
     (dataFBroker, addrBroker) = localSocket.recvfrom(128)
-    print('\nReceived message:\n', dataFBroker)
+    #print('\nReceived message:\n', dataFBroker)
     #Forward the sentence to Destination
     destSocket.send(dataFBroker)
 
