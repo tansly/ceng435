@@ -5,7 +5,7 @@ serverPort = 26298 + 300
 clientSocket = socket(AF_INET, SOCK_STREAM)
 clientSocket.connect((serverName,serverPort))
 index = 1
-sentence = chr(index) + 124 * 'a'
+sentence = str(index) + 127 * 'a'
 clientSocket.send(sentence.encode())
 clientSocket.close()
 

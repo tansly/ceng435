@@ -24,7 +24,5 @@ while True:
     (dataFDest, addrDest) = destSocket.recvfrom(128)
     brokerSocket.sendTo(dataFDest, addrBroker)
 
-
-
 brokerSocket.close()
 destSocket.close()
