@@ -18,10 +18,10 @@ destSocket = socket(AF_INET, SOCK_DGRAM)
 destSocket.connect((destServerName, destServerPort))
 
 while True:
-    (dataFBroker, addrBroker) = brokerSocket.recvfrom(128)
+    (dataFBroker, addrBroker) = localSocket.recvfrom(128)
     print('\nReceived message:\n', dataFBroker)
     #Forward the sentence to Destination
-    destSocket.send(dataFBroker.encode())
+    destSocket.send(dataFBroker)
 
 localSocket.close()
 destSocket.close()

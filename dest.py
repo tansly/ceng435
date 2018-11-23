@@ -15,13 +15,13 @@ localSocket.bind(('10.10.3.2', localServerPort))
 
 #Initialize routerSocket and connect to router2.
 routerSocket = socket(AF_INET, SOCK_DGRAM)
-routerSocket.connect(routerServerName, routerServerPort)
+routerSocket.connect((routerServerName, routerServerPort))
 
 while True:
     (dataFRouter, addrRouter) = localSocket.recvfrom(128)
     print('\nReceived message:\n', dataFRouter)
     #Create return sentence.
-    routerSocket.send(dataFRouter.upper().encode())
+    routerSocket.send(dataFRouter.upper())
 
 localSocket.close()
 routerSocket.close()
