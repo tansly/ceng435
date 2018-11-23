@@ -21,7 +21,7 @@ while True:
     (dataFDest, addrDest) = localSocket.recvfrom(128)
     print('\nReceived message:\n', dataFDest)
     #Forward the sentence to Destination
-    brokerSocket.send(dataFDest.encode())
+    brokerSocket.send(dataFDest)
 
 localSocket.close()
 brokerSocket.close()
