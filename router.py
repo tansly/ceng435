@@ -1,25 +1,30 @@
 from socket import *
 
 #IP of Destination
-#serverNameDest = '10.10.3.2'
-serverNameDest = '10.10.1.2'
+destServerName = '10.10.3.2'
 
 #Port of Destination
-#serverPortDest = 26299 + 300
+destServerPort = 26299 + 300
 
-serverPort = 26300 + 300
-#Listen to serverPort and record the sentence.
-serverSocket = socket(AF_INET, SOCK_DGRAM)
-serverSocket.bind(('10.10.2.2', serverPort))
+#Port of this server
+localServerPort = 26300 + 300
+
+#Listen to localServerPort and record the sentence.
+brokerSocket = socket(AF_INET, SOCK_DGRAM)
+brokerSocket.bind(('10.10.2.2', localServerPort))
+
+destSocket = socket(AF_INET, SOCK_DGRAM)
+destSocket.connect((serverNameDest,destServerPort))
 
 while True:
-    (data, addr) = serverSocket.recvfrom(128)
-    print('\nReceived message:\n', data)
-    serverSocket.sendto(data, addr)	
-#Forward the sentence to Destination
-#clientSocket = socket(AF_INET, SOCK_DGRAM)
-#clientSocket.connect((serverNameDest,serverPortDest))
-#clientSocket.send(data.encode())
+    (dataFBroker, addrBroker) = brokerSocket.recvfrom(128)
+    print('\nReceived message:\n', dataFBroker)
+    #Forward the sentence to Destination
+    destSocket.send(dataFBroker.encode())
+    (dataFDest, addrDest) = destSocket.recvfrom(128)
+    brokerSocket.sendTo(dataFDest, addrBroker)
 
-clientSocket.close()
 
+
+brokerSocket.close()
+destSocket.close()
