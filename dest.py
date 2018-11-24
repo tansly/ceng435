@@ -1,3 +1,5 @@
+import config
+
 from socket import*
 
 #Port of this server.
@@ -18,10 +20,9 @@ routerSocket = socket(AF_INET, SOCK_DGRAM)
 routerSocket.connect((routerServerName, routerServerPort))
 
 while True:
-    (dataFRouter, addrRouter) = localSocket.recvfrom(128)
-    #print('\nReceived message:\n', dataFRouter)
-    #Create return sentence.
-    routerSocket.send(dataFRouter.upper())
+    (dataFRouter, addrRouter) = localSocket.recvfrom(config.msg_size)
+    # Create return sentence.
+    routerSocket.send(dataFRouter)
 
 localSocket.close()
 routerSocket.close()

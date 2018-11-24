@@ -1,3 +1,5 @@
+import config
+
 from socket import *
 
 #Port of this server.
@@ -18,7 +20,7 @@ destSocket = socket(AF_INET, SOCK_DGRAM)
 destSocket.connect((destServerName, destServerPort))
 
 while True:
-    (dataFBroker, addrBroker) = localSocket.recvfrom(128)
+    (dataFBroker, addrBroker) = localSocket.recvfrom(config.msg_size)
     #print('\nReceived message:\n', dataFBroker)
     #Forward the sentence to Destination
     destSocket.send(dataFBroker)
