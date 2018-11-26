@@ -13,18 +13,18 @@ else
     exit
 fi
 
-ssh -p26301 yagmuroy@pc2.instageni.ku.gpeni.net\
+ssh r1_geni\
     "sudo tc qdisc replace dev eth1 root netem delay ${DELAY} ${JITTER} distribution normal\
     && sudo tc qdisc replace dev eth2 root netem delay ${DELAY} ${JITTER} distribution normal"
 
-ssh -p26300 yagmuroy@pc2.instageni.ku.gpeni.net\
+ssh r2_geni\
     "sudo tc qdisc replace dev eth1 root netem delay ${DELAY} ${JITTER} distribution normal\
     && sudo tc qdisc replace dev eth2 root netem delay ${DELAY} ${JITTER} distribution normal"
 
-ssh -p26299 yagmuroy@pc2.instageni.ku.gpeni.net\
+ssh d_geni\
     "sudo tc qdisc replace dev eth1 root netem delay ${DELAY} ${JITTER} distribution normal\
     && sudo tc qdisc replace dev eth2 root netem delay ${DELAY} ${JITTER} distribution normal"
 
-ssh -p26298 yagmuroy@pc2.instageni.ku.gpeni.net\
+ssh b_geni\
     "sudo tc qdisc replace dev eth2 root netem delay ${DELAY} ${JITTER} distribution normal\
     && sudo tc qdisc replace dev eth3 root netem delay ${DELAY} ${JITTER} distribution normal"
