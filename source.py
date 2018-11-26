@@ -14,8 +14,8 @@ clientSocket.connect((serverName,serverPort))
 
 #If source.py is run with parameter 'pl_test' then you can observe the result of the Packet Loss Test.
 #Packet Loss Test sends 1000, 8 byte packages wihtout waiting for any packet to return.
-if (sys.argv[1] == 'pl_test'):
-    for _ in range(1, 1000):
+if (len(sys.argv) > 1 and sys.argv[1] == 'pl_test'):
+    for i in range(0, min(1000, 10**config.msg_size)):
         msg = ('%' + str(config.msg_size) + 's') % i
         clientSocket.send(msg.encode())
         print(msg)
