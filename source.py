@@ -24,13 +24,14 @@ if (len(sys.argv) > 1 and sys.argv[1] == 'pl_test'):
 else:
     i = 0
     while True:
-        clientSocket.send((('%' + str(config.msg_size) + 's') % i).encode())
+        msg = str(1000*time.time())[:16]
+        clientSocket.send((('%' + str(config.msg_size) + 's') % msg).encode())
         time_sent = time.perf_counter()
     
         (dataFBroker, addrBroker) = clientSocket.recvfrom(config.msg_size)
         time_recved = time.perf_counter()
     
-        print(dataFBroker.decode() + '\t' + str(time_recved - time_sent))
+        print(dataFBroker.decode() + '\t' + str(1000*(time_recved - time_sent)))
     
         if i >= 10**config.msg_size:
             i = 0

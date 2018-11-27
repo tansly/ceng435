@@ -1,6 +1,7 @@
 import config
 
 from socket import*
+import time
 
 #Port of this server.
 localServerPort = 26299 + 300
@@ -21,7 +22,9 @@ routerSocket.connect((routerServerName, routerServerPort))
 
 while True:
     (dataFRouter, addrRouter) = localSocket.recvfrom(config.msg_size)
-    print(dataFRouter.decode())
+    sent_ts = float(dataFRouter.decode())
+    curr_ts = time.time()*1000
+    print(dataFRouter.decode() + '\t' + str(curr_ts - sent_ts))
     # Create return sentence.
     routerSocket.send(dataFRouter)
 
