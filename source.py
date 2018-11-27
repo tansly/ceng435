@@ -26,10 +26,10 @@ else:
     while True:
         msg = str(1000*time.time())[:16]
         clientSocket.send((('%' + str(config.msg_size) + 's') % msg).encode())
-        time_sent = time.perf_counter()
+        time_sent = time.time()
     
         (dataFBroker, addrBroker) = clientSocket.recvfrom(config.msg_size)
-        time_recved = time.perf_counter()
+        time_recved = time.time()
     
         print(dataFBroker.decode() + '\t' + str(1000*(time_recved - time_sent)))
     
