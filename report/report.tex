@@ -5,6 +5,7 @@
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{algorithmic}
 \usepackage{graphicx}
+\usepackage{listings}
 \usepackage{textcomp}
 \usepackage{xcolor}
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
@@ -49,28 +50,62 @@ Apart from delay tests we have also implemented packet loss test. In this test w
 \end{itemize}
 
 \subsection{Detailed Explanation of Synchronized Nodes}
-\begin{itemize}
-\item Use either SI (MKS) or CGS as primary units. (SI units are encouraged.) English units may be used as secondary units (in parentheses). An exception would be the use of English units as identifiers in trade, such as ``3.5-inch disk drive''.
-\item Avoid combining SI and CGS units, such as current in amperes and magnetic field in oersteds. This often leads to confusion because equations do not balance dimensionally. If you must use mixed units, clearly state the units for each quantity that you use in an equation.
-\item Do not mix complete spellings and abbreviations of units: ``Wb/m\textsuperscript{2}'' or ``webers per square meter'', not ``webers/m\textsuperscript{2}''. Spell out units when they appear in text: ``. . . a few henries'', not ``. . . a few H''.
-\item Use a zero before decimal points: ``0.25'', not ``.25''. Use ``cm\textsuperscript{3}'', not ``cc''.)
-\end{itemize}
+As previously mentioned, we approximate the end-to-end delay using the round trip time, i.e.\
+end-to-end delay is round trip time divided by two. Since our network delays will
+most likely be symmetric, this approach deemed to be accurate enough. Still,
+we implmented an alternative method of calculating the end-to-end delay using
+timestamps in packets. For this approach to produce reliable results, the clocks
+of the source and the destination must be synchronized.
+
+In order to synchronize the nodes, \textbf{NTP} is used. NTP sets the clock of the
+node using information from a time server. The following command is used to set the
+clock of the node:
+\begin{lstlisting}
+sudo ntpdate -s time.nist.gov
+\end{lstlisting}
+Then, the \textbf{clockdiff} program can be used to calculate the clock difference
+of two nodes. \textbf{clockdiff} uses ICMP TIMESTAMP packets (RFC0792, page 16)
+to measure the clock difference of two hosts with a 1ms resolution. An example run:
+\begin{lstlisting}
+yagmuroy@d:~\$ clockdiff 172.17.1.7.
+host=172.17.1.7 rtt=750(187)ms/0ms
+delta=-277ms/-277ms Wed Nov 28 11:55:06 2018
+\end{lstlisting}
+When the clock difference (delta) became small (around 5ms), we ran our experiments.
+Not to our surprise, the measured delay value was very close to our other approximation
+(round trip time divided by two). For practical purposes\footnote{Even though the nodes had been
+synchronised, their clocks started to drift and introduced noise in our measurements
+before any meaningful data was collected.}, we deemed it appropriate
+to use the round trip time approximation instead of the timestamp method.
 
 \subsection{Detailed Explanation of Broker Implementation }
-Number equations consecutively. To make your 
-equations more compact, you may use the solidus (~/~), the exp function, or 
-appropriate exponents. Italicize Roman symbols for quantities and variables, 
-but not Greek symbols. Use a long dash rather than a hyphen for a minus 
-sign. Punctuate equations with commas or periods when they are part of a 
-sentence, as in:
-\begin{equation}
-a+b=\gamma\label{eq}
-\end{equation}
+The broker is implemented as a multi-process server in C. This section describes
+the implementation of the broker from a high level viewpoint.
 
-Be sure that the 
-symbols in your equation have been defined before or immediately following 
-the equation. Use ``\eqref{eq}'', not ``Eq.~\eqref{eq}'' or ``equation \eqref{eq}'', except at 
-the beginning of a sentence: ``Equation \eqref{eq} is . . .''
+The broker, when started, creates a TCP socket, binds it to a local port, and listens
+it. It also creates two UDP sockets, one to send datagrams to Router 1, and one to receive
+datagrams from Router 2. Since the first UDP socket will always send datagrams to a
+fixed address and port (identifying the receiving socket at Router 1), we also
+call connect on the socket to save us from specifying the address and port at every send call.
+The second will receive datagrams from Router 2, therefore it must wait for packets
+on a fixed port (the port that Router 2 will send to). So it also binds the socket
+to a local address and port.
+
+After the sockets are created, connected, bound and listened, the broker starts
+its main loop in which it accepts TCP connections with the accept system call.
+When the Source connects to the broker, a new worker process is spawned. This worker
+process will handle the TCP connection socket. It receives byte streams from the Source,
+packetizes the bytes and sends them to Router 1 using the previously
+created UDP sockets. It also spawns another worker process (which shares the connection
+socket) that receives datagrams (containing feedback messages) from Router 2 and
+sends them over the TCP connection socket to the Source.
+
+When the TCP connection from the source is terminated, the recv call will return 0
+to the broker indicating connection termination. Knowing the connection is closed,
+the worker process kills its child (the other worker process that it spawned),
+checks if there is any leftover data coming from Router 2, clears it if there is
+and exits. The main process still waits to accept new TCP connections, so the brokes
+is a server that always keeps running.
 
 \subsection{\LaTeX-Specific Advice}
 
