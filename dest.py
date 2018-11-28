@@ -22,7 +22,7 @@ routerSocket.connect((routerServerName, routerServerPort))
 while True:
     (dataFRouter, addrRouter) = localSocket.recvfrom(config.msg_size)
     print(dataFRouter.decode())
-    # Create return sentence.
+    #Sent feedback message.
     routerSocket.send(dataFRouter)
 
 localSocket.close()

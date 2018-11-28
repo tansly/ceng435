@@ -21,7 +21,6 @@ destSocket.connect((destServerName, destServerPort))
 
 while True:
     (dataFBroker, addrBroker) = localSocket.recvfrom(config.msg_size)
-    #print('\nReceived message:\n', dataFBroker)
     #Forward the sentence to Destination
     destSocket.send(dataFBroker)
 

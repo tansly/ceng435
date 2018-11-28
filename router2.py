@@ -21,8 +21,7 @@ brokerSocket.connect((brokerServerName, brokerServerPort))
 
 while True:
     (dataFDest, addrDest) = localSocket.recvfrom(config.msg_size)
-    #print('\nReceived message:\n', dataFDest)
-    #Forward the sentence to Destination
+    #Forward the sentence to Broker.
     brokerSocket.send(dataFDest)
 
 localSocket.close()
