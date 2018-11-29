@@ -17,6 +17,9 @@ std = df.std(axis = 1)
 n = df.shape[1]
 yerr = std / np.sqrt(n) * stats.t.ppf(1-0.05/2, n - 1)
 
-#plt.figure()
-plt.bar(range(df.shape[0]), mean, yerr = yerr)
+x_axis = ['0', '1', '20', '60']
+
+plt.xlabel('Network emulation delay (ms)')
+plt.ylabel('Estimated end-to-end delay=RTT/2 (ms)')
+plt.bar(x_axis, mean, yerr = yerr)
 plt.savefig('plt.png')
