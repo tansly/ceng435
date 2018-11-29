@@ -106,7 +106,7 @@ When the TCP connection from the source is terminated, the recv call will return
 to the broker indicating connection termination. Knowing the connection is closed,
 the worker process kills its child (the other worker process that it spawned),
 checks if there is any leftover data coming from Router 2, clears it if there is
-and exits. The main process still waits to accept new TCP connections, so the brokes
+and exits. The main process still waits to accept new TCP connections, so the broker
 is a server that always keeps running.
 
 \section{Experiments}
