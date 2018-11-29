@@ -55,7 +55,7 @@ Apart from delay tests we have also implemented packet loss test. In this test w
 As previously mentioned, we approximate the end-to-end delay using the round trip time, i.e.\
 end-to-end delay is round trip time divided by two. Since our network delays will
 most likely be symmetric, this approach deemed to be accurate enough. Still,
-we implmented an alternative method of calculating the end-to-end delay using
+we implemented an alternative method of calculating the end-to-end delay using
 timestamps in packets. For this approach to produce reliable results, the clocks
 of the source and the destination must be synchronized.
 
@@ -132,6 +132,10 @@ Apart from these experiments we have also observed the end-to-end delay without 
 \item \textbf{Experiment 11:} 50ms +- 1ms, end-to-end delay: 100ms
 \item \textbf{Experiment 12:} 100ms +- 1ms, end-to-end delay: 200ms
 \end{itemize}
+
+For our experiments we have first set the network emulation delays. We have collected the end-to-end delay data of 1100 packets for each experiment. Using these data we have found the mean delays and 95\% confidence interval.
+
+In the light of all the experiments, we have concluded that when the netem/tc delay is set lower than the actual end-to-end delay, it does not effect the end-to-end delay of the packets. We observed looking at the Experiments 1, 4, 5, 6, and 7 that end-to-end delay remains the same even though netem/tc delay was increased gradually but did not exceed the actual end-to-end delay. When, the netem/tc delay is bigger than the actual end-to-end delay, netem/tc delay is not added on the top of the actual delay but it extends the delay at the each node to the set amount. Since the delay between Source and Broker is negligible (Link capacity is 100 times of the other links in the network) netem/tc delay set on the UDP nodes, determine the total end-to-end delay.
 
 \begin{figure}
     \centering
