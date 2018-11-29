@@ -5,7 +5,17 @@
 
 ## How to run
 
--Copy each script to the relevant node. Copy config.py to every node, it will be imported in python scripts.
+-Copy each script to the relevant node. Copy config.py to every node, it will be imported in python scripts. A shell script can be used to automate this task:
+```
+#!/bin/sh
+
+scp ./source.py ./config.py s_geni:
+scp ./router1.py ./config.py  r1_geni:
+scp ./router2.py ./config.py r2_geni:
+scp ./dest.py ./config.py d_geni:
+scp -r ./broker/ b_geni:
+```
+Note that one has to define the hosts (s\_geni, r1\_geni...) in their ```~/.ssh/config``` file in order for this script to work.
 
 -Nodes are synchronised using NTP. You can find more detailed information in the report.
 
@@ -16,7 +26,7 @@
 -To set the netem/tc delays we use the following script. To use it you have set your ssh config accordingly. Apart from that, you can see the shell commands inside the script.
 
 ```
-#!/bin/sh
+#!/bin/bash
 
 set -e
 
@@ -46,6 +56,29 @@ ssh d_geni\
 ssh b_geni\
     "sudo tc qdisc replace dev eth2 root netem delay ${DELAY} ${JITTER} distribution normal\
     && sudo tc qdisc replace dev eth3 root netem delay ${DELAY} ${JITTER} distribution normal"
+```
+
+Also, following script was used to remove all netem delays from all links:
+```
+#!/bin/bash
+
+set -e
+
+ssh r1_geni\
+    "sudo tc qdisc del dev eth1 root\
+    && sudo tc qdisc del dev eth2 root"
+
+ssh r2_geni\
+    "sudo tc qdisc del dev eth1 root\
+    && sudo tc qdisc del dev eth2 root"
+
+ssh d_geni\
+    "sudo tc qdisc del dev eth1 root\
+    && sudo tc qdisc del dev eth2 root"
+
+ssh b_geni\
+    "sudo tc qdisc del dev eth2 root\
+    && sudo tc qdisc del dev eth3 root"
 ```
 
 -After all configuration explained above are done, we start the broker first, the routers and the destination next, and finally the source.
