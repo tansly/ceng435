@@ -2,6 +2,8 @@
 \usepackage{cite}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{algorithmic}
+\usepackage{booktabs}
+\usepackage{caption}
 \usepackage{graphicx}
 \usepackage{listings}
 \usepackage{textcomp}
@@ -106,7 +108,7 @@ When the TCP connection from the source is terminated, the recv call will return
 to the broker indicating connection termination. Knowing the connection is closed,
 the worker process kills its child (the other worker process that it spawned),
 checks if there is any leftover data coming from Router 2, clears it if there is
-and exits. The main process still waits to accept new TCP connections, so the brokes
+and exits. The main process still waits to accept new TCP connections, so the broker
 is a server that always keeps running.
 
 \section{Experiments}
@@ -114,25 +116,25 @@ is a server that always keeps running.
 In our experiments we have plotted the 3 scenarios given in the homework text:
 
 \begin{itemize}
-\item \textbf{Experiment 1:} 1ms +- 5ms
-\item \textbf{Experiment 2:} 20ms +- 5ms
-\item \textbf{Experiment 3:} 60ms +- 5ms
+    \item \textbf{Experiment 1:} 1ms $\pm$ 5ms
+    \item \textbf{Experiment 2:} 20ms $\pm$ 5ms
+    \item \textbf{Experiment 3:} 60ms $\pm$ 5ms
 \end{itemize}
 You can find end-to-end delay results of these experiments in Figure~\ref{fig:graph}.
 
 Apart from these experiments we have also observed the end-to-end delay without any network delay emulations. In the first glance we could not make much sense of the results. That's why we have concluded to  make even more test with different emulated network delays and compare those results. Remaining experiments, their mean delays, jitter delays and the estimated end-to-end delay can be seen below:
 
 \begin{itemize}
-\item \textbf{Experiment 0:} 0 emulated delay, end-to-end delay: 20ms
-\item \textbf{Experiment 4:} 1ms +- 1ms, end-to-end delay: 20ms
-\item \textbf{Experiment 5:} 5ms +- 1ms, end-to-end delay: 20ms
-\item \textbf{Experiment 6:} 7.5ms +- 1ms, end-to-end delay: 20ms
-\item \textbf{Experiment 7:} 10ms +- 1ms, end-to-end delay: 20ms
-\item \textbf{Experiment 8:} 12.5ms +- 1ms, end-to-end delay: 25ms
-\item \textbf{Experiment 9:} 15ms +- 1ms, end-to-end delay: 30ms
-\item \textbf{Experiment 10:} 20ms + -1ms, end-to-end delay: 40ms
-\item \textbf{Experiment 11:} 50ms +- 1ms, end-to-end delay: 100ms
-\item \textbf{Experiment 12:} 100ms +- 1ms, end-to-end delay: 200ms
+    \item \textbf{Experiment 0:} 0 emulated delay, end-to-end delay: 20ms
+    \item \textbf{Experiment 4:} 1ms $\pm$ 1 ms, end-to-end delay: 20ms
+    \item \textbf{Experiment 5:} 5ms $\pm$ 1ms, end-to-end delay: 20ms
+    \item \textbf{Experiment 6:} 7.5ms $\pm$ 1ms, end-to-end delay: 20ms
+    \item \textbf{Experiment 7:} 10ms $\pm$ 1ms, end-to-end delay: 20ms
+    \item \textbf{Experiment 8:} 12.5ms $\pm$ 1ms, end-to-end delay: 25ms
+    \item \textbf{Experiment 9:} 15ms $\pm$ 1ms, end-to-end delay: 30ms
+    \item \textbf{Experiment 10:} 20ms $\pm$ 1ms, end-to-end delay: 40ms
+    \item \textbf{Experiment 11:} 50ms $\pm$ 1ms, end-to-end delay: 100ms
+    \item \textbf{Experiment 12:} 100ms $\pm$ 1ms, end-to-end delay: 200ms
 \end{itemize}
 
 For our experiments we have first set the network emulation delays. We have collected the end-to-end delay data of 1100 packets for each experiment. Using these data we have found the mean delays and 95\% confidence interval.
@@ -151,5 +153,36 @@ In the light of all the experiments, we have concluded that when the netem/tc de
 \end{figure}
 
 Having read the manual of netem/tc we had hard time making sense about the results we got from the experiments. We were expecting to see our end-to-end delay to increase by network emulation delay for each network delay emulated node. Namely for each pass through broker and router. As an example when we set netem/tc delay to 20ms with 5ms jitter we expected to see the delay: $20ms$ (actual delay) $+$ $20ms$ (delay from broker) $+$ $20ms$ (delay from router 1) $=$ $60ms$.
+
+Moreover, with or wihout emulated delays, the first few packets sent would return
+very quickly (in the order of a few milliseconds) but as the source sent more packets,
+the delay would quickly increase to a higher value (around 39 milliseconds with no
+emulated delay). To make sense of this, we ran some experiments using \textbf{ping}
+with different packet sizes and time intervals. Curiously, a similar pattern was observed
+with certain configurations; first few packets would arrive in a few milliseconds, then
+after a point, packets would be delayed and started to drop. This may be interpreted
+as the link capacity being exceeded; however this should not have happened in our test programs
+because the source does not send any new packets until the feedback of the last packet it had sent
+returned. The source should not be able to congest the link, yet it does
+(or an implementation error we could not detect causes this strange pattern).
+
+Figure~\ref{fig:graph} illustrates our experimental results.
+We calculated the 95\% confidence intervals as 19.2 to 19.6 for experiment 0,
+19.1 to 19.7 for experiment 1, 40.6 to 41.2 for experiment 2 and 120.9 to 121.1
+for experiment 3. Table~\ref{table:data} shows the summary of the results.\\
+
+\begin{table}
+    \centering
+    \begin{tabular}{c c c c}
+        \toprule
+        NetEm delay & $\mu$ & $\sigma$ & Error \\
+        $0ms$   &    $19.4ms$   &   $3.43ms$    &   $0.203ms$ \\
+        $1ms$   &    $19.4ms$   &   $4.47ms$    &   $0.264ms$ \\
+        $20ms$   &    $40.9ms$   &   $4.92ms$    &   $0.291ms$ \\
+        $60ms$   &    $121ms$   &   $4.99ms$    &   $0.295ms$ \\
+        \bottomrule
+    \end{tabular}\label{table:data} \\
+    \caption{Summary of experimental data}\label{table:data}
+\end{table}
 
 \end{document}
