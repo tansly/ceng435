@@ -2,6 +2,8 @@
 \usepackage{cite}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{algorithmic}
+\usepackage{booktabs}
+\usepackage{caption}
 \usepackage{graphicx}
 \usepackage{listings}
 \usepackage{textcomp}
@@ -146,6 +148,20 @@ In the light of all the experiments, we have concluded that when the netem/tc de
 Figure~\ref{fig:graph} illustrates our experimental results.
 We calculated the 95\% confidence intervals as 19.2 to 19.6 for experiment 0,
 19.1 to 19.7 for experiment 1, 40.6 to 41.2 for experiment 2 and 120.9 to 121.1
-for experiment 3.
+for experiment 3. Table~\ref{table:data} shows the summary of the results.\\
+
+\begin{table}
+    \centering
+    \begin{tabular}{c c c c}
+        \toprule
+        NetEm delay & $\mu$ & $\sigma$ & Error \\
+        $0ms$   &    $19.4ms$   &   $3.43ms$    &   $0.203ms$ \\
+        $1ms$   &    $19.4ms$   &   $4.47ms$    &   $0.264ms$ \\
+        $20ms$   &    $40.9ms$   &   $4.92ms$    &   $0.291ms$ \\
+        $60ms$   &    $121ms$   &   $4.99ms$    &   $0.295ms$ \\
+        \bottomrule
+    \end{tabular}\label{table:data} \\
+    \caption{Summary of experimental data}\label{table:data}
+\end{table}
 
 \end{document}
