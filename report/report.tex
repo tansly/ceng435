@@ -120,6 +120,30 @@ is a server that always keeps running.
 
 \section{Experiments}
 
+In our experiments we have plotted the 3 scenarios given in the homework text:
+
+\begin{itemize}
+\item Experiment 1: 1ms +- 5ms
+\item Experiment 2: 20ms +- 5ms
+\item Experiment 3: 60ms +- 5ms
+\end{itemize}
+Apart from these experiments we have also observed the end-to-end delay without any network delay emulations. In the first glance we could not make much sense of the results. That's why we have concluded to  make even more test with different emulated network delays and compare those results. Remaining experiments, their mean delays, jitter delays and the estimated end-to-end delay can be seen below:
+
+\begin{itemize}
+\item \textbf{Experiment 0:} 0 emulated delay, end-to-end delay: 20ms
+\item \textbf{Experiment 4:} 1ms +-1 ms, end-to-end delay: 20ms
+\item \textbf{Experiment 5:} 5ms +- 1ms, end-to-end delay: 20ms
+\item \textbf{Experiment 6:} 7.5ms +- 1ms, end-to-end delay: 20ms
+\item \textbf{Experiment 7:} 10ms +- 1ms, end-to-end delay: 20ms
+\item \textbf{Experiment 8:} 12.5ms +- 1ms, end-to-end delay: 25ms
+\item \textbf{Experiment 9:} 15ms +- 1ms, end-to-end delay: 30ms
+\item \textbf{Experiment 10:} 20ms + -1ms, end-to-end delay: 40ms
+\item \textbf{Experiment 11:} 50ms +- 1ms, end-to-end delay: 100ms
+\item \textbf{Experiment 12:} 100ms +- 1ms, end-to-end delay: 200ms
+\end{itemize}
+
+
+
 \begin{figure}
     \centering
     \includegraphics[scale=0.6]{graphics/plt}
