@@ -43,7 +43,7 @@ nodes.
 
 In our design, packet sent from Source passes through Broker, Router 1 and reaches Destination. All scripts except Broker is written in Python3. Before the packet is sent a TCP connection formed between Source and Broker. Our sensor readings are 8 bytes long and consists of the index of the packet. We have chosen this packet size so that we can can minimize the transmission delay and observe the netem/tc delays better. When the byte stream reaches Broker, they are sent to Router 1 through UDP connection. Router 1 listens to a predefined port number and directs the packet to Destination. Destination prints out the content of the received packet and sends feedback back to the source through Router 2. Router 2 directs the packet received from Destination to Broker. Finally broker uses the already open TCP connection to send the feedback message to Source. Source calculates the time difference between the sent packet and the received feedback message. By this method we have calculated the round-trip time. We have also implemented a method where we have synchronized the nodes and calculated the one way delay using time stamps that are sent with the packets. But we believe we have gathered more accurate results using round-trip time. You can find detailed synchronization implementation in the following parts of this documentation.
 
-\subsection{Test 1: Packet Loss Test}\label{AA}
+\subsection{Packet Loss Test}\label{AA}
 
 Apart from delay tests we have also implemented packet loss test. In this test we have sent 1000 consecutive packets from Source and observed how many of them reached to Broker and then to Destination. Its important to keep in mind that our packet size is 8 bytes. 
 \begin{itemize}
@@ -114,15 +114,17 @@ is a server that always keeps running.
 In our experiments we have plotted the 3 scenarios given in the homework text:
 
 \begin{itemize}
-\item Experiment 1: 1ms +- 5ms
-\item Experiment 2: 20ms +- 5ms
-\item Experiment 3: 60ms +- 5ms
+\item \textbf{Experiment 1:} 1ms +- 5ms
+\item \textbf{Experiment 2:} 20ms +- 5ms
+\item \textbf{Experiment 3:} 60ms +- 5ms
 \end{itemize}
+You can find end-to-end delay results of these experiments in Figure~\ref{fig:graph}.
+
 Apart from these experiments we have also observed the end-to-end delay without any network delay emulations. In the first glance we could not make much sense of the results. That's why we have concluded to  make even more test with different emulated network delays and compare those results. Remaining experiments, their mean delays, jitter delays and the estimated end-to-end delay can be seen below:
 
 \begin{itemize}
 \item \textbf{Experiment 0:} 0 emulated delay, end-to-end delay: 20ms
-\item \textbf{Experiment 4:} 1ms +-1 ms, end-to-end delay: 20ms
+\item \textbf{Experiment 4:} 1ms +- 1ms, end-to-end delay: 20ms
 \item \textbf{Experiment 5:} 5ms +- 1ms, end-to-end delay: 20ms
 \item \textbf{Experiment 6:} 7.5ms +- 1ms, end-to-end delay: 20ms
 \item \textbf{Experiment 7:} 10ms +- 1ms, end-to-end delay: 20ms
@@ -135,7 +137,12 @@ Apart from these experiments we have also observed the end-to-end delay without 
 
 For our experiments we have first set the network emulation delays. We have collected the end-to-end delay data of 1100 packets for each experiment. Using these data we have found the mean delays and 95\% confidence interval.
 
-In the light of all the experiments, we have concluded that when the netem/tc delay is set lower than the actual end-to-end delay, it does not effect the end-to-end delay of the packets. We observed looking at the Experiments 1, 4, 5, 6, and 7 that end-to-end delay remains the same even though netem/tc delay was increased gradually but did not exceed the actual end-to-end delay. When, the netem/tc delay is bigger than the actual end-to-end delay, netem/tc delay is not added on the top of the actual delay but it extends the delay at the each node to the set amount. Since the delay between Source and Broker is negligible (Link capacity is 100 times of the other links in the network) netem/tc delay set on the UDP nodes, determine the total end-to-end delay.
+Figure~\ref{fig:graph} illustrates our experimental results.
+We calculated the 95\% confidence intervals as 19.2 to 19.6 for Experiment 0,
+19.1 to 19.7 for Experiment 1, 40.6 to 41.2 for Experiment 2 and 120.9 to 121.1
+for Experiment 3.
+
+In the light of all the experiments, we have concluded that when the netem/tc delay is set lower than the actual end-to-end delay, it does not effect the end-to-end delay of the packets. We observed looking at the Experiments 1, 4, 5, 6, and 7 that end-to-end delay remains the same even though netem/tc delay was increased gradually but did not exceed the actual end-to-end delay. When, the netem/tc delay is bigger than the actual end-to-end delay, netem/tc delay is not added on the top of the actual delay but it extends the delay at the each node to the set amount as it can be seen in the Experiments 8, 9, 10, 11 and 12. Since the delay between Source and Broker is negligible (Link capacity is 100 times of the other links in the network) netem/tc delay set on the UDP nodes, determine the total end-to-end delay.
 
 \begin{figure}
     \centering
@@ -143,9 +150,6 @@ In the light of all the experiments, we have concluded that when the netem/tc de
     \caption{Network emulation delay vs.\ end-to-end delay}\label{fig:graph}
 \end{figure}
 
-Figure~\ref{fig:graph} illustrates our experimental results.
-We calculated the 95\% confidence intervals as 19.2 to 19.6 for experiment 0,
-19.1 to 19.7 for experiment 1, 40.6 to 41.2 for experiment 2 and 120.9 to 121.1
-for experiment 3.
+Having read the manual of netem/tc we had hard time making sense about the results we got from the experiments. We were expecting to see our end-to-end delay to increase by network emulation delay for each network delay emulated node. Namely for each pass through broker and router. As an example when we set netem/tc delay to 20ms with 5ms jitter we expected to see the delay: $20ms$ (actual delay) $+$ $20ms$ (delay from broker) $+$ $20ms$ (delay from router 1) $=$ $60ms$.
 
 \end{document}
