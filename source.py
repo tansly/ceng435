@@ -30,7 +30,7 @@ else:
         (dataFBroker, addrBroker) = clientSocket.recvfrom(config.msg_size)
         time_recved = time.perf_counter()
     
-        print(dataFBroker.decode() + '\t' + str(time_recved - time_sent))
+        print(dataFBroker.decode() + '\t' + str(1000*(time_recved - time_sent)))
     
         if i >= 10**config.msg_size:
             i = 0
