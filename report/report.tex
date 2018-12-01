@@ -40,7 +40,7 @@ we've used the shell scripts mentioned in the README file.
 
 Likewise, a few simple shell scripts were used for placing the code files in relevant nodes.
 
-\section{Network Topology Design Decisions}
+\section{Network Topology and Design Decisions}
 
 In our design, packet sent from Source passes through Broker, Router 1 and reaches Destination. All scripts except Broker is written in Python3. Before the packet is sent a TCP connection formed between Source and Broker. Our sensor readings are 8 bytes long and consists of the index of the packet. We have chosen a small packet size so that we can can minimize the transmission delay and observe the netem/tc delays better. When the byte stream reaches Broker, they are sent to Router 1 over UDP\@. Router 1 listens to a predefined port number and directs the packet to Destination, again over UDP\@. Destination prints out the content of the received packet and sends feedback back to the source through Router 2. Router 2 directs the packet received from Destination to Broker. Finally, Broker uses the already open TCP connection to send the feedback message to Source. Source calculates the time difference between the sent packet and the received feedback message. By this method we have calculated the round-trip time. We have also implemented a method where we have synchronized the nodes and calculated the one way delay using time stamps that are sent with the packets. But we believe we have gathered more accurate results using round-trip time. You can find detailed synchronization implementation in the following parts of this document.
 
@@ -53,12 +53,16 @@ Apart from delay tests we have also implemented packet loss test. In this test w
 \end{itemize}
 
 \subsection{Detailed Explanation of Synchronized Nodes}
-As previously mentioned, we approximate the end-to-end delay using the round trip time, i.e.\
-end-to-end delay is round trip time divided by two. Since our network delays will
-most likely be symmetric, this approach deemed to be accurate enough. Still,
-we implemented an alternative method of calculating the end-to-end delay using
+As previously mentioned, we approximated the end-to-end delay using the round trip time, i.e.\
+end-to-end delay is round trip time divided by two. Since the network delays were
+symmetric, i.e.\ the path from Source to Destination has the same characteristics as the
+path from Destination to Source\footnote{One could argue that when NetEm delays
+are added, the random jitter ($\pm 5ms$) possibly introduces asymmetric delays;
+with enough samples however, this asymmetric effect would be negligible with a high degree of confidence.},
+this approach was deemed to be accurate enough.
+Still, we implemented an alternative method of calculating the end-to-end delay using
 timestamps in packets. For this approach to produce reliable results, the clocks
-of the source and the destination must be synchronized.
+of the source and the destination were synchronized.
 
 In order to synchronize the nodes, \textbf{NTP} is used. NTP sets the clock of the
 node using information from a time server. The following command is used to set the
@@ -88,23 +92,23 @@ the implementation of the broker from a high level viewpoint.
 The broker, when started, creates a TCP socket, binds it to a local port, and listens
 it. It also creates two UDP sockets, one to send datagrams to Router 1, and one to receive
 datagrams from Router 2. Since the first UDP socket will always send datagrams to a
-fixed address and port (identifying the receiving socket at Router 1), we also
-call connect on the socket to save us from specifying the address and port at every send call.
+fixed address and port (identifying the receiving socket at Router 1), it also
+calls \textbf{connect} on the socket to save us from specifying the address and port at every send call.
 The second will receive datagrams from Router 2, therefore it must wait for packets
 on a fixed port (the port that Router 2 will send to). So it also binds the socket
 to a local address and port.
 
 After the sockets are created, connected, bound and listened, the broker starts
-its main loop in which it accepts TCP connections with the accept system call.
+its main loop in which it accepts TCP connections with the \textbf{accept} system call.
 When the Source connects to the broker, a new worker process is spawned. This worker
-process will handle the TCP connection socket. It receives byte streams from the Source,
+process handles the TCP connection socket. It receives byte streams from the Source,
 packetizes the bytes and sends them to Router 1 using the previously
 created UDP sockets. It also spawns another worker process (which shares the connection
 socket) that receives datagrams (containing feedback messages) from Router 2 and
-sends them over the TCP connection socket to the Source.
+sends them to the source, using the same TCP connection socket.
 
-When the TCP connection from the source is terminated, the recv call will return 0
-to the broker indicating connection termination. Knowing the connection is closed,
+When the TCP connection from the source is terminated, the \textbf{recv} call will return 0
+to the broker, indicating connection termination. Knowing the connection is closed,
 the worker process kills its child (the other worker process that it spawned),
 checks if there is any leftover data coming from Router 2, clears it if there is
 and exits. The main process still waits to accept new TCP connections, so the broker
