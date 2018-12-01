@@ -29,7 +29,7 @@
 
 \section{Introduction}
 
-In our CENG435 Term Project Part 1 we have designed a network topology according to the information provided to us in the homework description. We have formed a TCP connection between Source and Broker. We implemented UDP connection between Broker, Router 1, Router 2 and Destination. We tested packet loss and packet delays in our network.
+In our CENG435 Term Project Part 1 we have designed a network topology according to the information provided to us in the homework description. We have formed a TCP connection between Source and Broker. We implemented UDP based communication between Broker, Router 1, Router 2 and Destination. We tested packet loss and packet delays in our network.
 
 \section{Setting Up the Environment}
 To set network emulation delays, \textbf{tc} command is used. \textbf{tc} manipulates
@@ -38,19 +38,18 @@ in multiple machines becomes tedious very quickly.
 In order to quickly and conveniently set delays in multiple nodes and multiple links,
 we've used the shell scripts mentioned in the README file.
 
-Likewise, short shell scripts were used for placing the code files in relevant
-nodes.
+Likewise, a few simple shell scripts were used for placing the code files in relevant nodes.
 
 \section{Network Topology Design Decisions}
 
-In our design, packet sent from Source passes through Broker, Router 1 and reaches Destination. All scripts except Broker is written in Python3. Before the packet is sent a TCP connection formed between Source and Broker. Our sensor readings are 8 bytes long and consists of the index of the packet. We have chosen this packet size so that we can can minimize the transmission delay and observe the netem/tc delays better. When the byte stream reaches Broker, they are sent to Router 1 through UDP connection. Router 1 listens to a predefined port number and directs the packet to Destination. Destination prints out the content of the received packet and sends feedback back to the source through Router 2. Router 2 directs the packet received from Destination to Broker. Finally broker uses the already open TCP connection to send the feedback message to Source. Source calculates the time difference between the sent packet and the received feedback message. By this method we have calculated the round-trip time. We have also implemented a method where we have synchronized the nodes and calculated the one way delay using time stamps that are sent with the packets. But we believe we have gathered more accurate results using round-trip time. You can find detailed synchronization implementation in the following parts of this documentation.
+In our design, packet sent from Source passes through Broker, Router 1 and reaches Destination. All scripts except Broker is written in Python3. Before the packet is sent a TCP connection formed between Source and Broker. Our sensor readings are 8 bytes long and consists of the index of the packet. We have chosen a small packet size so that we can can minimize the transmission delay and observe the netem/tc delays better. When the byte stream reaches Broker, they are sent to Router 1 over UDP\@. Router 1 listens to a predefined port number and directs the packet to Destination, again over UDP\@. Destination prints out the content of the received packet and sends feedback back to the source through Router 2. Router 2 directs the packet received from Destination to Broker. Finally, Broker uses the already open TCP connection to send the feedback message to Source. Source calculates the time difference between the sent packet and the received feedback message. By this method we have calculated the round-trip time. We have also implemented a method where we have synchronized the nodes and calculated the one way delay using time stamps that are sent with the packets. But we believe we have gathered more accurate results using round-trip time. You can find detailed synchronization implementation in the following parts of this document.
 
 \subsection{Packet Loss Test}\label{AA}
 
 Apart from delay tests we have also implemented packet loss test. In this test we have sent 1000 consecutive packets from Source and observed how many of them reached to Broker and then to Destination. Its important to keep in mind that our packet size is 8 bytes. 
 \begin{itemize}
-\item 1000/1000: All of the packets sent by Source were received by Broker. Since the connection between Source and Destination is TCP, packet loss is not expected.
-\item 67/1000: Only 67 of the packets were received by the destination. There is a significant packet loss. We exceed the capacity of the links between the other nodes. That's why while transferring the packets through UDP nodes, most of them were lost. While we were sending packets of size 128 bytes, the packet loss rate was even higher, with only 17 packets reaching Destination. We also observed that when we increased the size of the packets to 4 times, the amount of the packets delivered to Destination reduced to 1 over 4.
+    \item 1000/1000: All of the packets sent by Source were received by Broker. Since the connection between Source and Destination is over TCP, packet loss is not expected (TCP is a reliable protocol and it recovers from lost segments).
+    \item 67/1000: Only 67 of the packets were received by the destination, a significant packet loss. The link between Source and Broker has a capacity of 1000 kbps, while the other links (where we employ UDP based communication) has a capacity of 10 kbps. Messages reach the broker with a rate of 1000 kbps (neglecting the overhead of TCP) and they are put (over a UDP socket, with nothing limiting their rate) to the outgoing link which has a capacity 10 kbps. In other words, Broker tries to send datagrams through the link with a rate higher than the capacity of the link. Since UDP does not employ any kind of congestion control or flow control and does not guarantee that the datagrams will reach the destination, most (more than 90\%) of the messages are lost. We also experimented by sending packets of size 128 bytes. We observed an even higher packet loss rate, with only 17 packets reaching Destination. We also observed that when we increased the size of the packets by a factor of 4, the amount of the packets delivered to Destination was decreased by a factor of 4.
 \end{itemize}
 
 \subsection{Detailed Explanation of Synchronized Nodes}
