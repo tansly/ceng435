@@ -50,7 +50,7 @@ In our design, packet sent from Source passes through Broker, Router 1 and reach
 Apart from delay tests we have also implemented packet loss test. In this test we have sent 1000 consecutive packets from Source and observed how many of them reached to Broker and then to Destination. Its important to keep in mind that our packet size is 8 bytes. 
 \begin{itemize}
 \item 1000/1000: All of the packets sent by Source were received by Broker. Since the connection between Source and Destination is TCP, packet loss is not expected.
-\item 67/1000: Only 67 of the packets were recieved by the destination. There is a significant packet loss. We exceed the capacity of the links between the other nodes. That's why while transfering the packets through UDP nodes, most of them were lost. While we were sending packets of size 128 bytes, the packet loss rate was even higher, with only 17 packets reaching Destination. We also observed that when we increased the size of the packets to 4 times, the amount of the packets delivered to Destination reduced to 1 over 4.
+\item 67/1000: Only 67 of the packets were received by the destination. There is a significant packet loss. We exceed the capacity of the links between the other nodes. That's why while transferring the packets through UDP nodes, most of them were lost. While we were sending packets of size 128 bytes, the packet loss rate was even higher, with only 17 packets reaching Destination. We also observed that when we increased the size of the packets to 4 times, the amount of the packets delivered to Destination reduced to 1 over 4.
 \end{itemize}
 
 \subsection{Detailed Explanation of Synchronized Nodes}
@@ -154,7 +154,7 @@ In the light of all the experiments, we have concluded that when the netem/tc de
 
 Having read the manual of netem/tc we had hard time making sense about the results we got from the experiments. We were expecting to see our end-to-end delay to increase by network emulation delay for each network delay emulated node. Namely for each pass through broker and router. As an example when we set netem/tc delay to 20ms with 5ms jitter we expected to see the delay: $20ms$ (actual delay) $+$ $20ms$ (delay from broker) $+$ $20ms$ (delay from router 1) $=$ $60ms$.
 
-Moreover, with or wihout emulated delays, the first few packets sent would return
+Moreover, with or without emulated delays, the first few packets sent would return
 very quickly (in the order of a few milliseconds) but as the source sent more packets,
 the delay would quickly increase to a higher value (around 39 milliseconds with no
 emulated delay). To make sense of this, we ran some experiments using \textbf{ping}
