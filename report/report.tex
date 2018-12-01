@@ -76,7 +76,8 @@ to measure the clock difference of two hosts with a 1ms resolution. An example r
 \begin{lstlisting}
 yagmuroy@d:~\$ clockdiff 172.17.1.7.
 host=172.17.1.7 rtt=750(187)ms/0ms
-delta=-277ms/-277ms Wed Nov 28 11:55:06 2018
+delta=-277ms/-277ms
+Wed Nov 28 11:55:06 2018
 \end{lstlisting}
 When the clock difference (delta) became small (around 5ms), we ran our experiments.
 Not to our surprise, the measured delay value was very close to our other approximation
@@ -140,12 +141,12 @@ Apart from these experiments we have also observed the end-to-end delay without 
     \item \textbf{Experiment 12:} 100ms $\pm$ 1ms, end-to-end delay: 200ms
 \end{itemize}
 
-For our experiments we have first set the network emulation delays. We have collected the end-to-end delay data of 1100 packets for each experiment. Using these data we have found the mean delays and 95\% confidence interval.
+For our experiments we have first set the network emulation delays. We have collected the end-to-end delay data of 1100 packets for each experiment. Using these data we have calculated the mean delays and 95\% confidence intervals.
 
-Figure~\ref{fig:graph} illustrates our experimental results.
-We calculated the 95\% confidence intervals as 19.2 to 19.6 for Experiment 0,
-19.1 to 19.7 for Experiment 1, 40.6 to 41.2 for Experiment 2 and 120.9 to 121.1
-for Experiment 3.
+Figure~\ref{fig:graph} illustrates our experimental results for experiments 0, 1, 2 and 3.
+We calculated the 95\% confidence intervals as 19.2 to 19.6 for experiment 0,
+19.1 to 19.7 for experiment 1, 40.6 to 41.2 for experiment 2 and 120.9 to 121.1
+for experiment 3. Table~\ref{table:data} shows the summary of these results.
 
 In the light of all the experiments, we have concluded that when the netem/tc delay is set lower than the actual end-to-end delay, it does not effect the end-to-end delay of the packets. We observed looking at the Experiments 1, 4, 5, 6, and 7 that end-to-end delay remains the same even though netem/tc delay was increased gradually but did not exceed the actual end-to-end delay. When, the netem/tc delay is bigger than the actual end-to-end delay, netem/tc delay is not added on the top of the actual delay but it extends the delay at the each node to the set amount as it can be seen in the Experiments 8, 9, 10, 11 and 12. Since the delay between Source and Broker is negligible (Link capacity is 100 times of the other links in the network) netem/tc delay set on the UDP nodes, determine the total end-to-end delay.
 
@@ -168,11 +169,6 @@ as the link capacity being exceeded; however this should not have happened in ou
 because the source does not send any new packets until the feedback of the last packet it had sent
 returned. The source should not be able to congest the link, yet it does
 (or an implementation error we could not detect causes this strange pattern).
-
-Figure~\ref{fig:graph} illustrates our experimental results.
-We calculated the 95\% confidence intervals as 19.2 to 19.6 for experiment 0,
-19.1 to 19.7 for experiment 1, 40.6 to 41.2 for experiment 2 and 120.9 to 121.1
-for experiment 3. Table~\ref{table:data} shows the summary of the results.\\
 
 \begin{table}
     \centering
