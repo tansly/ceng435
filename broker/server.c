@@ -40,7 +40,6 @@ static struct {
 
     /*
      * We receive feedback messages from r2.
-     * TODO: Bind this socket to a local port (the port that r2 sends to).
      */
     const char *r2_bind_addr;
     const char *r2_bind_port;
@@ -113,7 +112,7 @@ static int listen_server_socket(void)
 
 /*
  * connect() the r1 socket and return it.
- * Retuen -1 on failure.
+ * Return -1 on failure.
  */
 static int connect_r1_socket(void)
 {
@@ -151,7 +150,7 @@ static int connect_r1_socket(void)
 
 /*
  * bind() the r2 socket and return it.
- * Retuen -1 on failure.
+ * Return -1 on failure.
  */
 static int bind_r2_socket()
 {
@@ -274,16 +273,28 @@ static void child_main(int recv_sock)
     free(server.bind_port);
     close(server.listen_sock);
 
+    /*
+     * Fork the router handler child.
+     */
     pid_t pid = fork();
     if (pid == -1) {
         fprintf(stderr, "Fork failed.\n");
         exit(0);
     } else if (pid == 0) {
+        /*
+         * We, the child, share the file descriptors with our parent. This way,
+         * we can use the recv_sock together with our parent. Unlike our parent,
+         * however, we use this socket not to recv from the source, but to send
+         * to the source.
+         */
         router_handler(recv_sock);
         /* NO RETURN */
         assert(0);
     }
 
+    /*
+     * We, the parent, recv bytes from the source, and send them in datagrams to r1.
+     */
     while ((recved = recv(recv_sock, buf, MSG_SIZE, MSG_WAITALL)) > 0) {
         if (recved != MSG_SIZE) {
             fprintf(stderr, "recv(recv_sock) returned %ld\n", recved);
@@ -362,6 +373,9 @@ void main_loop(void)
             continue;
         }
 
+        /*
+         * Fork the connection handler child.
+         */
         pid = fork();
         if (pid == -1) {
             fprintf(stderr, "Fork failed.\n");
@@ -371,6 +385,9 @@ void main_loop(void)
             assert(0);
             exit(EXIT_FAILURE);
         } else {
+            /*
+             * We, the parent, is done with this socket. The child will handle it.
+             */
             close(recv_sock);
             server.curr_clients++;
         }
