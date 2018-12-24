@@ -1,14 +1,14 @@
-CC=gcc
-CFLAGS=-Wall -Wextra -O2 -DMSG_SIZE=8 -DNDEBUG
-SRCS=broker.c server.c
-OBJS=$(patsubst %.c, %.o, $(SRCS))
-HDRS=globals.h
-TARGET=broker
+CXX=g++
+CXXFLAGS=-std=c++17 -pthread -Wall -Wextra -O2
+SRCS=broker.cpp
+OBJS=$(patsubst %.cpp, %.o, $(SRCS))
+HDRS=queue.hpp
+TARGET=broker.out
 
 $(TARGET) : $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o $(TARGET)
+	$(CXX) $(CXXFLAGS) $(OBJS) -o $(TARGET)
 
 $(OBJS) : $(SRCS) $(HDRS)
 
 clean:
-	rm -f *.o *.out broker
+	rm -f *.o *.out
