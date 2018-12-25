@@ -14,6 +14,8 @@
 #include <netinet/in.h>
 
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 #include <utility>
 
@@ -213,19 +215,31 @@ void child_main(int recv_sock)
      * Will run in seperate threads for sending over r1 and r2.
      */
     std::vector<std::pair<Util::Packet, int>> sender_window(Util::window_size);
-    std::atomic<int> sender_base {0};
+    std::mutex window_mutex;
+    std::condition_variable window_not_full;
+    std::uint32_t base {0};
+    std::uint32_t next_seq_num {0};
     auto rdt_sender = [&](int dest_sock) {
         for (;;) {
-            auto packet_and_len = packet_and_len_q.dequeue();
-            send(dest_sock, &packet_and_len.first, packet_and_len.second, 0);
+            std::unique_lock<std::mutex> window_lock {window_mutex};
             /*
-             * Save the packet in the sender window. We don't do any synchronization here
-             * because accesses from different threads will be to different vector cells.
-             * XXX: Can this cause any problems? I heard insane stuff could happen
-             * because of memory alignment and stuff even though the cells are
-             * distinct. Learn more about this issue.
+             * Sleep if the window is full. Will wake up if an ACK is received
+             * (and the window slides).
              */
-            sender_window[(sender_base + ntohl(packet_and_len.first.seq_num)) % Util::window_size] = packet_and_len;
+            window_not_full.wait(window_lock, [&]{return next_seq_num < base + Util::window_size;});
+            auto packet_and_len = packet_and_len_q.dequeue();
+            /*
+             * We set the sequence numbers here.
+             */
+            packet_and_len.first.seq_num = htonl(next_seq_num);
+            sender_window[next_seq_num % Util::window_size] = packet_and_len;
+            send(dest_sock, &packet_and_len.first, packet_and_len.second, 0);
+            if (base == next_seq_num) {
+                /*
+                 * TODO: Start a timer
+                 */
+            }
+            ++next_seq_num;
         }
     };
 
@@ -241,7 +255,8 @@ void child_main(int recv_sock)
             if (recv(dest_sock, &packet, Util::header_size, 0) != Util::header_size) {
                 fprintf(stderr, "You done fucked up.\n");
             }
-            std::cout << ntohl(packet.seq_num) << std::endl;
+            base = packet.seq_num + 1;
+            window_not_full.notify_one();
         }
     };
 
