@@ -15,14 +15,37 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef TELEGRAM_NOTIFIER_QUEUE_HPP
-#define TELEGRAM_NOTIFIER_QUEUE_HPP
+#ifndef UTIL_HPP
+#define UTIL_HPP
 
 #include <condition_variable>
 #include <iostream>
 #include <mutex>
 #include <thread>
 #include <queue>
+#include <cstdint>
+
+namespace Util {
+
+/*
+ * Payload size in bytes.
+ */
+constexpr inline auto payload_size = 980;
+/*
+ * Checksum size in bytes.
+ * MD5 (128-bit, 16 bytes) is used as a checksum.
+ */
+constexpr inline auto checksum_size = 16;
+/*
+ * Header size in bytes.
+ */
+constexpr inline auto header_size = checksum_size + sizeof(std::uint32_t);
+
+struct Packet {
+    std::uint32_t seq_num;
+    char checksum[checksum_size];
+    char payload[payload_size];
+};
 
 template <class T>
 class Queue {
@@ -70,4 +93,6 @@ T Queue<T>::dequeue()
     return elem;
 }
 
-#endif /* TELEGRAM_NOTIFIER_QUEUE_H */
+}
+
+#endif /* UTIL_HPP */

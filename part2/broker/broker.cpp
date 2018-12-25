@@ -15,11 +15,9 @@
 
 #define BACKLOG 10
 
-/*
- * TODO: Better return some error codes on failure?
- */
+namespace {
 
-static struct {
+struct {
     int curr_clients;   // current number of clients 
     int max_clients;    // max number of clients
 
@@ -39,14 +37,23 @@ static struct {
     const char *dr2_port;
     int dr2_sock;
 } server = {
+    .curr_clients = 0,
+    .max_clients = 0,
+    .bind_addr = NULL,
+    .bind_port = NULL,
+    .backlog = BACKLOG,
+    .listen_sock = -1,
+
     .dr1_addr = "10.10.3.2",
     .dr1_port = "26599",
+    .dr1_sock = -1,
 
     .dr2_addr = "10.10.5.2",
-    .dr2_port = "26599"
+    .dr2_port = "26599",
+    .dr2_sock = -1
 };
 
-static void sigchld_handler(int sig)
+void sigchld_handler(int sig)
 {
     int old_errno = errno;
     while (waitpid(-1, NULL, WNOHANG) > 0) {
@@ -59,7 +66,7 @@ static void sigchld_handler(int sig)
  * listen() the server socket and return the fd.
  * Return -1 on failure.
  */
-static int listen_server_socket(void)
+int listen_server_socket(void)
 {
     int status;
     int sockfd;
@@ -104,7 +111,7 @@ static int listen_server_socket(void)
  * Create and connect a socket to addr and port.
  * Return -1 on failure.
  */
-static int connect_dest_socket(const char *addr, const char *port)
+int connect_dest_socket(const char *addr, const char *port)
 {
     int status;
     int sockfd;
@@ -145,7 +152,7 @@ static int connect_dest_socket(const char *addr, const char *port)
  * * The sockets that sends to destination.
  * Return 0 on success, non-zero on error.
  */
-static int setup_sockets(void)
+int setup_sockets(void)
 {
     int sockfd;
 
@@ -171,45 +178,10 @@ static int setup_sockets(void)
 }
 
 /*
- * This function will handle incoming messages (feedback) from r2.
- * It receives datagrams from r2 and sends it to source over @source_sock.
- * @source_sock the socket that accept() returned; the socket
- * that is connected to the source. It is shared with the parent process that
- * receives data from the source.
- * When the source socket is closed, that is when the source terminates,
- * this process is killed by its parent.
- * This function does not return.
- */
-static void router_handler(int source_sock)
-{
-    char buf[MSG_SIZE];
-    ssize_t recved;
-
-    for (;;) {
-        if ((recved = read(server.r2_sock, buf, MSG_SIZE)) != MSG_SIZE) {
-            fprintf(stderr, "read(source_sock) returned %ld\n", recved);
-        } else {
-            ssize_t written;
-            written = write(source_sock, buf, MSG_SIZE);
-            if (written != MSG_SIZE) {
-                /*
-                 * TODO: Handle partial send properly instead of printing
-                 * an error message.
-                 */
-                fprintf(stderr, "write(source_sock) returned %ld\n", written);
-            }
-        }
-    }
-
-    exit(0);
-}
-
-/*
  * Main routine for fork()ed child
  */
-static void child_main(int recv_sock)
+void child_main(int recv_sock)
 {
-    char buf[MSG_SIZE];
     ssize_t recved;
     // Child will not need the signal handlers of the parent.
     struct sigaction sa;
@@ -224,56 +196,15 @@ static void child_main(int recv_sock)
     free(server.bind_port);
     close(server.listen_sock);
 
-    /*
-     * Fork the router handler child.
-     */
-    pid_t pid = fork();
-    if (pid == -1) {
-        fprintf(stderr, "Fork failed.\n");
-        exit(0);
-    } else if (pid == 0) {
-        /*
-         * We, the child, share the file descriptors with our parent. This way,
-         * we can use the recv_sock together with our parent. Unlike our parent,
-         * however, we use this socket not to recv from the source, but to send
-         * to the source.
-         */
-        router_handler(recv_sock);
-        /* NO RETURN */
-        assert(0);
-    }
-
-    /*
-     * We, the parent, recv bytes from the source, and send them in datagrams to r1.
-     */
-    while ((recved = recv(recv_sock, buf, MSG_SIZE, MSG_WAITALL)) > 0) {
-        if (recved != MSG_SIZE) {
+    while ((recved = recv(recv_sock, buf, PAYLOAD_SIZE, MSG_WAITALL)) > 0) {
+        if (recved != PAYLOAD_SIZE) {
+            /*
+             * TODO: What to do in this case? The final packet?
+             */
             fprintf(stderr, "recv(recv_sock) returned %ld\n", recved);
-            continue;
         }
 
-        ssize_t written;
-        if ((written = write(server.r1_sock, buf, recved)) != MSG_SIZE) {
-            fprintf(stderr, "write(server.r1_sock) returned %ld\n", written);
-            fprintf(stderr, "This should not have happened.\n");
-        }
     }
-
-    kill(pid, SIGTERM);
-
-    /*
-     * We should somehow clear remaining messages in server.r2_sock. Why?
-     * Because when we kill our child (when the source node terminates the connection)
-     * some messages (from r2) remain in the socket, ready to be recved. When a new connection
-     * is established with the source, the new child starts recving from server.r2_sock
-     * and receives messages from the previous communication.
-     * This is undesirable, hence the following code.
-     * XXX: This works as long as we don't stop and start the source too quickly.
-     * Seriously, give it a second. Why the rush?
-     */
-    sleep(1); // Pray and hope for the best.
-    while (recv(server.r2_sock, buf, MSG_SIZE, MSG_DONTWAIT) > 0)
-        ;
 
     exit(0);
 }
@@ -298,18 +229,13 @@ int start_server(const char *bind_addr, const char *bind_port, int max_clients)
     return 0;
 }
 
-/*
- * TODO:
- * 1) Error checking
- * 2) Get client address, log it or print it or something
- */
 void main_loop(void)
 {
     int recv_sock;
     pid_t pid;
 
     for (;;) {
-        recv_sock = accept(server.listen_sock, NULL, NULL); // TODO 1) 2)
+        recv_sock = accept(server.listen_sock, NULL, NULL);
         if (recv_sock == -1) {
             // Currently we just go on to accept() another connection,
             // but we should properly handle different errors.
@@ -345,7 +271,22 @@ void main_loop(void)
     }
 }
 
+}
+
 int main()
 {
-    return 0;
+    int status = 0;
+    status = start_server("0.0.0.0", "26598", 1);
+    if (status != 0) {
+        fprintf(stderr, "Failed to start server!\n");
+        return 1;
+    }
+    /* The server has been started.
+     * Time to start the main loop of the program.
+     * This will accept() clients and start recv()'ing and playing.
+     */
+    main_loop();
+    // THOU SHALT NOT PASS
+    assert(0);
+    return 1;
 }
