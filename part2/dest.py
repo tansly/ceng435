@@ -13,6 +13,8 @@ eth1InterfaceIP = '10.10.5.2'
 #IP of first interface of Destination (eth2)
 eth2InterfaceIP = '10.10.3.2'
 
+filename = 'payload'
+
 seq = 0
 seq_lock = threading.Lock()
 
@@ -23,14 +25,18 @@ class ClientThread(threading.Thread):
         self.csocket.bind((localIP, localPort))
         print ("New socket thread binded to: ", localIP, ' ', localPort)
     def run(self):
-        #self.csocket.send(bytes("Hi, This is from Server..",'utf-8'))
         message = ''
         while True:
             (dataReceived, senderAddr) = self.csocket.recvfrom(1000)
+            (seq_received, checksum, payload) = struct.unpack('!I16s' + str(len(dataReceived) - 20) + 's', dataReceived)
+            
             seq_lock.acquire()
-            (seq, checksum, payload) = struct.unpack('!I16s' + str(len(dataReceived) - 20) + 's', dataReceived)
-            print(seq)
-            self.csocket.sendto(struct.pack('!I16s', seq, checksum), senderAddr)
+            global seq
+            if (seq_received == seq + 1):
+                seq = seq_received
+                with open(filename, 'ab') as file:
+                    file.write(payload);
+                self.csocket.sendto(struct.pack('!I16s', seq, checksum), senderAddr)
             seq_lock.release()
 
 eth1SocketThread = ClientThread(eth1InterfaceIP, localServerPort);
