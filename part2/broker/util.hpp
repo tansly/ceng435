@@ -42,9 +42,15 @@ constexpr inline auto checksum_size = 16;
 constexpr inline auto header_size = checksum_size + sizeof(std::uint32_t);
 
 struct Packet {
+    Packet() :
+        seq_num {0},
+        checksum {0},
+        payload {0}
+    {
+    }
     std::uint32_t seq_num;
-    char checksum[checksum_size];
-    char payload[payload_size];
+    std::uint8_t checksum[checksum_size];
+    std::uint8_t payload[payload_size];
 };
 
 template <class T>
