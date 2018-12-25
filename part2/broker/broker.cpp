@@ -206,6 +206,8 @@ void child_main(int recv_sock)
     /*
      * Fancy stuff begins here.
      *
+     * TODO: Can we implement a lockless mechanism?
+     *
      * The pair holds the packet and the size of the packet. This is a dirty hack
      * until we determine if we should have a length field in the packet.
      */
@@ -215,21 +217,54 @@ void child_main(int recv_sock)
      * The sender function and shared variables of the rdt protocol.
      * Senders dequeue the packets and send them over disjoint links.
      * Will run in seperate threads for sending over r1 and r2.
+     *
+     * The mutex protects the window base and the sequence number and the window vector.
+     * (base, next_seq_num, sender_window)
+     * TODO: Those variables are related logically. A better C++ style could make
+     * this relation explicit, no?
+     * TODO: Maybe we should use separate mutexes for separate variables.
      */
-    std::vector<std::pair<Util::Packet, int>> sender_window(Util::window_size);
     std::mutex window_mutex;
+    std::vector<std::pair<Util::Packet, int>> sender_window(Util::window_size);
     std::condition_variable window_not_full;
     std::uint32_t base {0};
     std::uint32_t next_seq_num {0};
 
-    auto rdt_timer_handler = [&](int sock1, int sock2, std::shared_ptr<std::atomic<bool>> timer_cancelled) {
-        std::this_thread::sleep_for(Util::timeout_value);
-    };
-
     /*
      * Don't ask me why.
+     * XXX: Somehow, in the current state of affairs that my broken logic
+     * lead me into, this variable is also protected by the window_mutex.
+     * This has quickly turned into a giant bowl of spaghetti.
+     * I guess I should properly use separate mutexes and protect this
+     * separately. Or better yet, completely rethink and rewrite the timer
+     * mechanism, this should not have been such a mess in the first place.
      */
     std::shared_ptr<std::atomic<bool>> timer_cancelled;
+
+    /*
+     * XXX: This does not use sock2 right now.
+     */
+    auto rdt_timer_handler = [&](int sock1, int sock2, std::shared_ptr<std::atomic<bool>> cancel_this_timer) {
+        std::this_thread::sleep_for(Util::timeout_value);
+        /*
+         * The timer may have been cancelled if an ACK has been received and a new
+         * timer has been started.
+         */
+        while (!*cancel_this_timer) {
+            /*
+             * TODO: Do I need to find a better way than locking everything here?
+             ** We will eventually recv the ACKs when the lock is released.
+             ** Calling send() for all packets should not take a lot of time anyways.
+             * So I *think* it's fine. Needs a second look, though.
+             */
+            window_mutex.lock();
+            for (auto i = base; i < next_seq_num; ++i) {
+                send(sock1, &sender_window[i].first, sender_window[i].second, 0);
+            }
+            window_mutex.unlock();
+            std::this_thread::sleep_for(Util::timeout_value);
+        }
+    };
 
     auto start_timer = [&] {
         /*
@@ -276,10 +311,14 @@ void child_main(int recv_sock)
              */
             if (recv(dest_sock, &packet, Util::header_size, 0) != Util::header_size) {
                 fprintf(stderr, "You done fucked up.\n");
+                continue;
             }
             /*
              * XXX: Should check if the base is actually increased?
              * What about out-of-order ACK packets?
+             * UPDATE: I think the protocol should work correctly regardless.
+             * However, it still might be good to check this. Think about it
+             * a little bit more.
              */
             std::unique_lock<std::mutex> window_lock {window_mutex};
             base = packet.seq_num + 1;
