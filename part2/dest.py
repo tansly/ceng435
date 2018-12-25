@@ -7,12 +7,13 @@ import struct
 #Port of this server.
 localServerPort = 26299 + 300
 
-#IP of first interface of Destination (eth1)
+#IP of the first interface of Destination (eth1)
 eth1InterfaceIP = '10.10.5.2'
 
-#IP of first interface of Destination (eth2)
+#IP of the second interface of Destination (eth2)
 eth2InterfaceIP = '10.10.3.2'
 
+#Name of the file where the packets received in correct order are written to.
 filename = 'payload'
 
 seq = 0
@@ -36,7 +37,7 @@ class ClientThread(threading.Thread):
                 seq = seq_received
                 with open(filename, 'ab') as file:
                     file.write(payload);
-                self.csocket.sendto(struct.pack('!I16s', seq, checksum), senderAddr)
+            self.csocket.sendto(struct.pack('!I16s', seq, checksum), senderAddr)
             seq_lock.release()
 
 eth1SocketThread = ClientThread(eth1InterfaceIP, localServerPort);
@@ -45,8 +46,8 @@ eth2SocketThread = ClientThread(eth2InterfaceIP, localServerPort);
 eth1SocketThread.start();
 eth2SocketThread.start();
 
-eth1SocketThread.join();
-eth2SocketThread.join();
-
 print("Server started")
 print("Waiting for messages")
+
+eth1SocketThread.join();
+eth2SocketThread.join();
