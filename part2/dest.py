@@ -2,6 +2,7 @@ import config
 
 from socket import*
 import threading
+import struct
 
 #Port of this server.
 localServerPort = 26299 + 300
@@ -26,14 +27,11 @@ class ClientThread(threading.Thread):
         message = ''
         while True:
             (dataReceived, senderAddr) = self.csocket.recvfrom(1000)
-            message = dataReceived.decode()
             seq_lock.acquire()
-            #Some fuckery
-            if (message[:4])
-                
-            print ("Message received: ", message)
-            ACKMessage = "Selam"
-            self.csocket.sendto(bytes(ACKMessage), senderAddr)
+            (seq, checksum, payload) = struct.unpack('!I16s' + str(len(dataReceived) - 20) + 's', dataReceived)
+            print(seq)
+            self.csocket.sendto(struct.pack('!I16s', seq, checksum), senderAddr)
+            seq_lock.release()
 
 eth1SocketThread = ClientThread(eth1InterfaceIP, localServerPort);
 eth2SocketThread = ClientThread(eth2InterfaceIP, localServerPort);
@@ -46,9 +44,3 @@ eth2SocketThread.join();
 
 print("Server started")
 print("Waiting for messages")
-
-
-
-
-
-
