@@ -205,19 +205,19 @@ void child_main(int recv_sock)
      * The pair holds the packet and the size of the packet. This is a dirty hack
      * until we determine if we should have a length field in the packet.
      */
-    Util::Queue<std::pair<Util::Packet, int>> packet_q;
+    Util::Queue<std::pair<Util::Packet, int>> packet_and_len_q;
 
     /*
-     * The main sender function and shared variables of the rdt protocol.
+     * The sender function and shared variables of the rdt protocol.
      * Senders dequeue the packets and send them over disjoint links.
      * Will run in seperate threads for sending over r1 and r2.
      */
     std::vector<std::pair<Util::Packet, int>> sender_window(Util::window_size);
     std::atomic<int> sender_base {0};
-    auto rdt_main = [&](int dest_sock) {
+    auto rdt_sender = [&](int dest_sock) {
         for (;;) {
-            auto packet = packet_q.dequeue();
-            send(dest_sock, &packet.first, packet.second, 0);
+            auto packet_and_len = packet_and_len_q.dequeue();
+            send(dest_sock, &packet_and_len.first, packet_and_len.second, 0);
             /*
              * Save the packet in the sender window. We don't do any synchronization here
              * because accesses from different threads will be to different vector cells.
@@ -225,12 +225,31 @@ void child_main(int recv_sock)
              * because of memory alignment and stuff even though the cells are
              * distinct. Learn more about this issue.
              */
-            sender_window[(sender_base + ntohl(packet.first.seq_num)) % Util::window_size] = packet;
+            sender_window[(sender_base + ntohl(packet_and_len.first.seq_num)) % Util::window_size] = packet_and_len;
         }
     };
 
-    std::thread r1_thread {rdt_main, server.dr1_sock};
-    std::thread r2_thread {rdt_main, server.dr2_sock};
+    /*
+     * rdt protocol ACK handler.
+     */
+    auto rdt_recver = [&](int dest_sock) {
+        for (;;) {
+            auto packet = Util::Packet();
+            /*
+             * ACK packets are packets without a payload.
+             */
+            if (recv(dest_sock, &packet, Util::header_size, 0) != Util::header_size) {
+                fprintf(stderr, "You done fucked up.\n");
+            }
+            std::cout << ntohl(packet.seq_num) << std::endl;
+        }
+    };
+
+
+    std::thread r1_sender {rdt_sender, server.dr1_sock};
+    std::thread r2_sender {rdt_sender, server.dr2_sock};
+    std::thread r1_recver {rdt_recver, server.dr1_sock};
+    std::thread r2_recver {rdt_recver, server.dr2_sock};
 
     ssize_t recved;
     std::uint32_t seq_num = 0;
@@ -258,7 +277,7 @@ void child_main(int recv_sock)
          */
 
         ++seq_num;
-        packet_q.enqueue({packet, recved + Util::header_size});
+        packet_and_len_q.enqueue({packet, recved + Util::header_size});
     }
 
     exit(0);
