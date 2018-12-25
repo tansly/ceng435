@@ -1,14 +1,14 @@
 #include "util.hpp"
 
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
+#include <cassert>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cerrno>
+#include <csignal>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
-#include <signal.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
