@@ -234,7 +234,13 @@ void child_main(int recv_sock)
              */
             fprintf(stderr, "recv(recv_sock) returned %ld\n", recved);
         }
-        packet.seq_num = seq_num;
+        /*
+         * XXX: The sender threads also have to keep track of the seq. numbers.
+         * If we htonl() the number here, they will have to ntohl(), do their thang
+         * and htonl() again. Think of this issue before this thing turns into a
+         * huge mess.
+         */
+        packet.seq_num = htonl(seq_num);
         ++seq_num;
         packet_q.enqueue({packet, recved + Util::header_size});
     }
