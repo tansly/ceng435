@@ -321,7 +321,7 @@ void child_main(int recv_sock)
              * a little bit more.
              */
             std::unique_lock<std::mutex> window_lock {window_mutex};
-            base = packet.seq_num + 1;
+            base = ntohl(packet.seq_num) + 1;
             if (base == next_seq_num) {
                 *timer_cancelled = true;
             } else {
