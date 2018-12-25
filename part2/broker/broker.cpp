@@ -13,6 +13,10 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
+#include <atomic>
+#include <thread>
+#include <utility>
+
 #define BACKLOG 10
 
 namespace {
@@ -182,7 +186,6 @@ int setup_sockets(void)
  */
 void child_main(int recv_sock)
 {
-    ssize_t recved;
     // Child will not need the signal handlers of the parent.
     struct sigaction sa;
     memset(&sa, 0, sizeof sa);
@@ -191,19 +194,49 @@ void child_main(int recv_sock)
     sa.sa_handler = SIG_DFL;
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
-
+    // Just to satisfy myself, free these things
     free(server.bind_addr);
     free(server.bind_port);
     close(server.listen_sock);
 
-    while ((recved = recv(recv_sock, buf, PAYLOAD_SIZE, MSG_WAITALL)) > 0) {
-        if (recved != PAYLOAD_SIZE) {
+    /*
+     * Fancy stuff begins here.
+     *
+     * The pair holds the packet and the length. This is a dirty hack
+     * until we determine if we should have a length field in the packet.
+     */
+    Util::Queue<std::pair<Util::Packet, int>> packet_q;
+    /*
+     * The main sender function for the rdt protocol.
+     * Dequeues the packets and sends them.
+     * Will run in seperate threads for sending over r1 and r2.
+     */
+    auto rdt_main = [&](int dest_sock) {
+        for (;;) {
+            auto packet = packet_q.dequeue();
+            send(dest_sock, &packet.first, packet.second, 0);
+        }
+    };
+    std::thread r1_thread {rdt_main, server.dr1_sock};
+    std::thread r2_thread {rdt_main, server.dr2_sock};
+
+    ssize_t recved;
+    std::uint32_t seq_num = 0;
+    /*
+     * Packet constructor initializes fields to zero.
+     * TODO: Checksum (MD5)
+     */
+    Util::Packet packet;
+    while ((recved = recv(recv_sock, &packet.payload, Util::payload_size, MSG_WAITALL)) > 0) {
+        if (recved != Util::payload_size) {
             /*
              * TODO: What to do in this case? The final packet?
              */
             fprintf(stderr, "recv(recv_sock) returned %ld\n", recved);
         }
-
+        packet.seq_num = seq_num;
+        ++seq_num;
+        packet_q.enqueue({packet, recved + Util::header_size});
     }
 
     exit(0);

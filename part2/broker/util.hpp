@@ -40,6 +40,14 @@ constexpr inline auto checksum_size = 16;
  * Header size in bytes.
  */
 constexpr inline auto header_size = checksum_size + sizeof(std::uint32_t);
+/*
+ * The maximum size of a packet, including the header and the payload.
+ * Not that the actual packet size may be less. XXX: Should we have a length field?
+ * Without a length field, the receiver may know the actual packet length by
+ * trying to recv() the maximum amount from its socket, and check the return value
+ * of the recv() for the actual amount.
+ */
+constexpr inline auto max_packet_size = payload_size + header_size;
 
 struct Packet {
     Packet() :
