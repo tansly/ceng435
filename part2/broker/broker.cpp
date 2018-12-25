@@ -206,17 +206,29 @@ void child_main(int recv_sock)
      * until we determine if we should have a length field in the packet.
      */
     Util::Queue<std::pair<Util::Packet, int>> packet_q;
+
     /*
-     * The main sender function for the rdt protocol.
-     * Dequeues the packets and sends them.
+     * The main sender function and shared variables of the rdt protocol.
+     * Senders dequeue the packets and send them over disjoint links.
      * Will run in seperate threads for sending over r1 and r2.
      */
+    std::vector<std::pair<Util::Packet, int>> sender_window(Util::window_size);
+    std::atomic<int> sender_base {0};
     auto rdt_main = [&](int dest_sock) {
         for (;;) {
             auto packet = packet_q.dequeue();
             send(dest_sock, &packet.first, packet.second, 0);
+            /*
+             * Save the packet in the sender window. We don't do any synchronization here
+             * because accesses from different threads will be to different vector cells.
+             * XXX: Can this cause any problems? I heard insane stuff could happen
+             * because of memory alignment and stuff even though the cells are
+             * distinct. Learn more about this issue.
+             */
+            sender_window[(sender_base + ntohl(packet.first.seq_num)) % Util::window_size] = packet;
         }
     };
+
     std::thread r1_thread {rdt_main, server.dr1_sock};
     std::thread r2_thread {rdt_main, server.dr2_sock};
 
@@ -241,6 +253,10 @@ void child_main(int recv_sock)
          * huge mess.
          */
         packet.seq_num = htonl(seq_num);
+        /*
+         * We should probably compute the checksum at this point.
+         */
+
         ++seq_num;
         packet_q.enqueue({packet, recved + Util::header_size});
     }

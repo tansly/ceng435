@@ -28,6 +28,11 @@
 namespace Util {
 
 /*
+ * Window size as number of packets in the pipeline.
+ */
+constexpr auto window_size = 30;
+
+/*
  * Payload size in bytes.
  */
 constexpr auto payload_size = 980;
@@ -37,7 +42,7 @@ constexpr auto payload_size = 980;
  */
 constexpr auto checksum_size = 16;
 /*
- * Header size in bytes.
+ * Header size in bytes. Size of the checksum + size of the seq. number.
  */
 constexpr auto header_size = checksum_size + sizeof(std::uint32_t);
 /*
