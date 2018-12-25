@@ -202,7 +202,7 @@ void child_main(int recv_sock)
     /*
      * Fancy stuff begins here.
      *
-     * The pair holds the packet and the length. This is a dirty hack
+     * The pair holds the packet and the size of the packet. This is a dirty hack
      * until we determine if we should have a length field in the packet.
      */
     Util::Queue<std::pair<Util::Packet, int>> packet_q;
