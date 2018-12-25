@@ -15,6 +15,8 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <future>
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <utility>
@@ -219,6 +221,27 @@ void child_main(int recv_sock)
     std::condition_variable window_not_full;
     std::uint32_t base {0};
     std::uint32_t next_seq_num {0};
+
+    auto rdt_timer_handler = [&](int sock1, int sock2, std::shared_ptr<std::atomic<bool>> timer_cancelled) {
+        std::this_thread::sleep_for(Util::timeout_value);
+    };
+
+    /*
+     * Don't ask me why.
+     */
+    std::shared_ptr<std::atomic<bool>> timer_cancelled;
+
+    auto start_timer = [&] {
+        /*
+         * XXX:
+         * I have to explain this madness or fix it.
+         */
+        timer_cancelled = std::make_shared<std::atomic<bool>>(false);
+        std::packaged_task<void(int, int, std::shared_ptr<std::atomic<bool>>)> timer {rdt_timer_handler};
+        std::thread timer_td {std::move(timer), server.dr1_sock, server.dr2_sock, timer_cancelled};
+        timer_td.detach();
+    };
+
     auto rdt_sender = [&](int dest_sock) {
         for (;;) {
             std::unique_lock<std::mutex> window_lock {window_mutex};
@@ -232,12 +255,11 @@ void child_main(int recv_sock)
              * We set the sequence numbers here.
              */
             packet_and_len.first.seq_num = htonl(next_seq_num);
+
             sender_window[next_seq_num % Util::window_size] = packet_and_len;
             send(dest_sock, &packet_and_len.first, packet_and_len.second, 0);
             if (base == next_seq_num) {
-                /*
-                 * TODO: Start a timer
-                 */
+                start_timer();
             }
             ++next_seq_num;
         }
@@ -255,11 +277,21 @@ void child_main(int recv_sock)
             if (recv(dest_sock, &packet, Util::header_size, 0) != Util::header_size) {
                 fprintf(stderr, "You done fucked up.\n");
             }
+            /*
+             * XXX: Should check if the base is actually increased?
+             * What about out-of-order ACK packets?
+             */
+            std::unique_lock<std::mutex> window_lock {window_mutex};
             base = packet.seq_num + 1;
+            if (base == next_seq_num) {
+                *timer_cancelled = true;
+            } else {
+                *timer_cancelled = true;
+                start_timer();
+            }
             window_not_full.notify_one();
         }
     };
-
 
     std::thread r1_sender {rdt_sender, server.dr1_sock};
     std::thread r2_sender {rdt_sender, server.dr2_sock};

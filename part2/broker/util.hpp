@@ -24,8 +24,14 @@
 #include <thread>
 #include <queue>
 #include <cstdint>
+#include <chrono>
 
 namespace Util {
+
+/*
+ * Sender timeout in milliseconds
+ */
+constexpr auto timeout_value = std::chrono::milliseconds(500);
 
 /*
  * Window size as number of packets in the pipeline.
