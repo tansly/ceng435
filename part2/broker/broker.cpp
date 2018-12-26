@@ -357,7 +357,7 @@ void child_main(int recv_sock)
 #endif
             }
 
-            if (base == next_seq_num - 1) {
+            if (base == next_seq_num) {
                 start_timer();
             }
         }
