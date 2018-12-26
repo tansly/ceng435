@@ -16,7 +16,7 @@ eth2InterfaceIP = '10.10.3.2'
 #Name of the file where the packets received in correct order are written to.
 filename = 'payload'
 
-seq = 0
+seq = -1
 seq_lock = threading.Lock()
 
 class ClientThread(threading.Thread):
