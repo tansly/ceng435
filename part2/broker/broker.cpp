@@ -13,7 +13,6 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
-#include <atomic>
 #include <condition_variable>
 #include <future>
 #include <memory>
@@ -239,25 +238,24 @@ void child_main(int recv_sock)
      * separately. Or better yet, completely rethink and rewrite the timer
      * mechanism, this should not have been such a mess in the first place.
      */
-    std::shared_ptr<std::atomic<bool>> timer_cancelled;
+    std::shared_ptr<bool> timer_cancelled;
 
     /*
      * XXX: This does not use sock2 right now.
      */
-    auto rdt_timer_handler = [&](int sock1, int sock2, std::shared_ptr<std::atomic<bool>> cancel_this_timer) {
+    auto rdt_timer_handler = [&](int sock1, int sock2, std::shared_ptr<bool> cancel_this_timer) {
         std::this_thread::sleep_for(Util::timeout_value);
         /*
          * The timer may have been cancelled if an ACK has been received and a new
          * timer has been started.
          */
-        while (!*cancel_this_timer) {
+        while (window_mutex.lock(), !*cancel_this_timer) {
             /*
              * TODO: Do I need to find a better way than locking everything here?
              ** We will eventually recv the ACKs when the lock is released.
              ** Calling send() for all packets should not take a lot of time anyways.
              * So I *think* it's fine. Needs a second look, though.
              */
-            window_mutex.lock();
             for (auto i = base; i < next_seq_num; ++i) {
                 auto &packet_and_len = sender_window[i % Util::window_size];
                 auto packet = packet_and_len.first;
@@ -267,6 +265,7 @@ void child_main(int recv_sock)
             window_mutex.unlock();
             std::this_thread::sleep_for(Util::timeout_value);
         }
+        window_mutex.unlock();
     };
 
     auto start_timer = [&] {
@@ -274,8 +273,8 @@ void child_main(int recv_sock)
          * XXX:
          * I have to explain this madness or fix it.
          */
-        timer_cancelled = std::make_shared<std::atomic<bool>>(false);
-        std::packaged_task<void(int, int, std::shared_ptr<std::atomic<bool>>)> timer {rdt_timer_handler};
+        timer_cancelled = std::make_shared<bool>(false);
+        std::packaged_task<void(int, int, std::shared_ptr<bool>)> timer {rdt_timer_handler};
         std::thread timer_td {std::move(timer), server.dr1_sock, server.dr2_sock, timer_cancelled};
         timer_td.detach();
     };
