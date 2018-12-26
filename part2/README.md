@@ -91,3 +91,97 @@ PING 10.10.5.2 (10.10.5.2) 56(84) bytes of data.
 3 packets transmitted, 3 received, 0% packet loss, time 2002ms
 rtt min/avg/max/mdev = 0.889/0.981/1.058/0.069 ms
 ```
+
+## How to run
+
+-Copy each script to the relevant node. Copy config.py to every node, it will be imported in python scripts. A shell script can be used to automate this task:
+```
+#!/bin/sh
+
+scp ./source.sh s_geni:
+scp ./dest.py ./config.py d_geni:
+scp -r ./broker/ b_geni:
+```
+Note that one has to define the hosts (s\_geni, d\_geni, b\_geni) in their `~/.ssh/config` file in order for this script to work.
+
+-To set the netem/tc delay and corruption values we use the following script. To use it you have set your ssh config accordingly. Apart from that, you can see the shell commands inside the script.
+
+```
+#!/bin/bash
+
+set -e
+
+if [[ "$#" -eq 1 ]]; then
+    CORRUPT="${1}"
+else
+    echo "${0} PERCENT"
+    exit
+fi
+
+ssh r1_geni\
+    "sudo tc qdisc replace dev eth1 root netem delay 3ms corrupt "${CORRUPT}"% &&\
+    sudo tc qdisc replace dev eth2 root netem delay 3ms corrupt "${CORRUPT}"%"
+
+ssh r2_geni\
+    "sudo tc qdisc replace dev eth1 root netem delay 3ms corrupt "${CORRUPT}"% &&\
+    sudo tc qdisc replace dev eth2 root netem delay 3ms corrupt "${CORRUPT}"%"
+
+ssh d_geni\
+    "sudo tc qdisc replace dev eth1 root netem delay 3ms corrupt "${CORRUPT}"% &&\
+    sudo tc qdisc replace dev eth2 root netem delay 3ms corrupt "${CORRUPT}"%"
+
+ssh b_geni\
+    "sudo tc qdisc replace dev eth2 root netem delay 3ms corrupt "${CORRUPT}"% &&\
+    sudo tc qdisc replace dev eth3 root netem delay 3ms corrupt "${CORRUPT}"%"
+```
+
+For the loss and reorder settings, you can check the scripts in our submission.
+
+-After all configuration explained above are done, we start the broker first, and the destination next.
+Finally, we start the source.
+
+Broker is written in C++ and thus has to be compiled first.
+
+```
+>cd ./broker
+>make
+>./broker.out
+```
+
+Then run the destination script, and finally run the source script to start the transmission.
+
+```
+>python3 dest.py
+```
+
+```
+./source.sh FILENAME
+```
+(FILENAME is the name of the file to be transmitted.)
+
+Before each experiment, we remove the existing `tc` rules using the following script:
+
+```
+#!/bin/bash
+
+set -e
+
+ssh r1_geni\
+    "sudo tc qdisc del dev eth1 root\
+    && sudo tc qdisc del dev eth2 root"
+
+ssh r2_geni\
+    "sudo tc qdisc del dev eth1 root\
+    && sudo tc qdisc del dev eth2 root"
+
+ssh d_geni\
+    "sudo tc qdisc del dev eth1 root\
+    && sudo tc qdisc del dev eth2 root"
+
+ssh b_geni\
+    "sudo tc qdisc del dev eth2 root\
+    && sudo tc qdisc del dev eth3 root"
+```
+
+Then, we run the relevant script for the experiment and then run our server codes
+as explained in the How to run section.
