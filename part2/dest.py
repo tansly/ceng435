@@ -47,7 +47,8 @@ class ClientThread(threading.Thread):
                 seq = seq_received
                 
                 # If the packets payload is NULL then the file is fully received. Broker handles this.
-                if (len(dataReceived) == 0):
+                # XXX: 20 is the header length
+                if (len(dataReceived) == 20):
                     print('File received')
                 
                 # Else write the payload to the file.
