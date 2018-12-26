@@ -259,7 +259,10 @@ void child_main(int recv_sock)
              */
             window_mutex.lock();
             for (auto i = base; i < next_seq_num; ++i) {
-                send(sock1, &sender_window[i].first, sender_window[i].second, 0);
+                auto &packet_and_len = sender_window[i % Util::window_size];
+                auto packet = packet_and_len.first;
+                auto len = packet_and_len.second;
+                send(sock1, &packet, len, 0);
             }
             window_mutex.unlock();
             std::this_thread::sleep_for(Util::timeout_value);
