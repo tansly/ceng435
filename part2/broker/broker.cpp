@@ -316,6 +316,14 @@ void child_main(int recv_sock)
 
     auto rdt_sender = [&](int dest_sock) {
         for (;;) {
+            /*
+             * Sleep if the window is full. Will wake up if an ACK is received
+             * (and the window slides).
+             */
+            auto packet_and_len = packet_and_len_q.dequeue();
+            auto &packet = packet_and_len.first;
+            auto &len = packet_and_len.second;
+
             std::unique_lock<std::mutex> window_lock {window_mutex};
             /*
              * If we or the other sender has sent the final packet, we should
@@ -324,14 +332,7 @@ void child_main(int recv_sock)
             if (final_sent) {
                 return;
             }
-            /*
-             * Sleep if the window is full. Will wake up if an ACK is received
-             * (and the window slides).
-             */
             window_not_full.wait(window_lock, [&]{return next_seq_num < base + Util::window_size;});
-            auto packet_and_len = packet_and_len_q.dequeue();
-            auto &packet = packet_and_len.first;
-            auto &len = packet_and_len.second;
 
             /*
              * To signify the end of the data, we use a packet with no payload,
