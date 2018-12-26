@@ -31,7 +31,7 @@ namespace Util {
 /*
  * Sender timeout.
  */
-constexpr auto timeout_millis = 500;
+constexpr auto timeout_millis = 100;
 constexpr auto timeout_value = std::chrono::milliseconds(timeout_millis);
 
 /*
