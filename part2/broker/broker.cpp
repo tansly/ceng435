@@ -335,8 +335,6 @@ void child_main(int recv_sock)
 
             window_not_full.wait(window_lock, [&]{return ntohl(packet.seq_num) < base + Util::window_size;});
 
-            next_seq_num = std::max(next_seq_num, ntohl(packet.seq_num) + 1);
-
             sender_window[ntohl(packet.seq_num) % Util::window_size] = packet_and_len;
 
             send(dest_sock, &packet, len, 0);
@@ -347,7 +345,7 @@ void child_main(int recv_sock)
              */
             if (len == Util::header_size) {
                 final_sent = true;
-                final_seq_num = next_seq_num;
+                final_seq_num = ntohl(packet.seq_num);
 #ifndef NDEBUG
                 std::cerr << "FIN: " << final_seq_num << std::endl;
 #endif
@@ -360,6 +358,8 @@ void child_main(int recv_sock)
             if (base == next_seq_num) {
                 start_timer();
             }
+
+            next_seq_num = std::max(next_seq_num, ntohl(packet.seq_num) + 1);
         }
     };
 
