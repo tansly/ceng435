@@ -340,7 +340,7 @@ void child_main(int recv_sock)
 
             std::unique_lock<std::mutex> window_lock {window_mutex};
             /*
-             * If the final packet was already ACKed, we return immediately.
+             * If the final packet is ACKed, we return immediately.
              */
             if (final_acked || (final_sent && final_seq_num == ntohl(packet.seq_num))) {
                 final_acked = true;
