@@ -262,6 +262,9 @@ void child_main(int recv_sock)
                 auto &packet_and_len = sender_window[i % Util::window_size];
                 auto &packet = packet_and_len.first;
                 auto &len = packet_and_len.second;
+#ifndef NDEBUG
+                std::cerr << "RTX: " << ntohl(packet.seq_num) << std::endl;
+#endif
                 send(sock1, &packet, len, 0);
             }
             window_mutex.unlock();
@@ -316,6 +319,10 @@ void child_main(int recv_sock)
             packet_and_len.first.seq_num = htonl(next_seq_num);
 
             sender_window[next_seq_num % Util::window_size] = packet_and_len;
+
+#ifndef NDEBUG
+            std::cerr << "SEQ: " << ntohl(packet.seq_num) << std::endl;
+#endif
             send(dest_sock, &packet, len, 0);
             if (base == next_seq_num) {
                 start_timer();
@@ -334,7 +341,9 @@ void child_main(int recv_sock)
              * ACK packets are packets without a payload.
              */
             if (recv(dest_sock, &packet, Util::header_size, 0) != Util::header_size) {
+#ifndef NDEBUG
                 fprintf(stderr, "You done fucked up.\n");
+#endif
                 continue;
             }
 
@@ -357,7 +366,9 @@ void child_main(int recv_sock)
              * UPDATE2: Now checking it.
              */
             base = std::max(base, ntohl(packet.seq_num) + 1);
-            std::cout << base << std::endl;
+#ifndef NDEBUG
+            std::cerr << "ACK: " << ntohl(packet.seq_num) << std::endl;
+#endif
             if (base == next_seq_num) {
                 *timer_cancelled = true;
             } else {
@@ -383,9 +394,11 @@ void child_main(int recv_sock)
     while ((recved = recv(recv_sock, &packet.payload, Util::payload_size, MSG_WAITALL)) > 0) {
         if (recved != Util::payload_size) {
             /*
-             * TODO: What to do in this case? The final packet?
+             * The last packet.
              */
+#ifndef NDEBUG
             fprintf(stderr, "recv(recv_sock) returned %ld\n", recved);
+#endif
         }
         /*
          * XXX: The sender threads also have to keep track of the seq. numbers.
