@@ -22,6 +22,8 @@ seq = -1
 #SEQ Lock is used to prevent different socket threads from accesing the SEQ number at the same time.
 seq_lock = threading.Lock()
 
+recv_buffer = []
+
 # Socket thread class.
 class ClientThread(threading.Thread):
     # Initialize the socket thread by opening a UDP socket and binding it to an Interface.
@@ -37,24 +39,27 @@ class ClientThread(threading.Thread):
             (dataReceived, senderAddr) = self.csocket.recvfrom(config.msg_size)
             # UDP socket unpacks the received packet.
             (seq_received, checksum, payload) = struct.unpack('!I16s' + str(len(dataReceived) - 20) + 's', dataReceived)
-            
+
             # SEQ Lock acquired to prevent other treads accesing at the same time.
             seq_lock.acquire()
             global seq
             
-            # If the packet has the expected SEQ number..
-            if (seq_received == seq + 1):
-                seq = seq_received
+            global recv_buffer
+            if len(recv_buffer) <= seq_received:
+                recv_buffer += [i for i in range(len(recv_buffer), seq_received + 1)]
+            recv_buffer[seq_received] = payload
+
+            while seq < len(recv_buffer) and type(recv_buffer[seq]) != int:
+                seq += 1
                 
-                # If the packets payload is NULL then the file is fully received. Broker handles this.
-                # XXX: 20 is the header length
-                if (len(dataReceived) == 20):
-                    print('File received')
+            # If the packets payload is NULL then the file is fully received. Broker handles this.
+            # XXX: 20 is the header length
+            if (len(dataReceived) == 20):
+                print('File received')
                 
-                # Else write the payload to the file.
-                else:
-                    with open(filename, 'ab') as file:
-                        file.write(payload);
+            with open(filename, 'ab') as file:
+                for payload in recv_buffer:
+                    file.write(payload);
         
             # Destination sends an ACK message indicating the SEQ number of the last received expected packet.
             self.csocket.sendto(struct.pack('!I16s', seq, checksum), senderAddr)
