@@ -70,6 +70,15 @@ ssh d_geni\
     sudo ip route add 10.10.4.0/24 via 10.10.5.1 src 10.10.5.2"
 ```
 
+The tables we set achieve the following:
+- When a packet is originated from the broker with destination subnet 10.10.3.0/24 (the subnet between r1 and d), it is sent via the gateway 10.10.2.2 (r1), using the source IP 10.10.2.1.
+- When a packet is originated from the broker with destination subnet 10.10.5.0/24 (the subnet between r2 and d), it is sent via the gateway 10.10.4.2 (r2), using the source IP 10.10.4.1.
+- When a packet is received by r1 with a destination subnet 10.10.3.0/24, it is forwarded to the destination. (Note that r1 is directly connected to the 10.10.3.0/24 subnet with one of its interfaces.)
+- When a packet is received by r2 with a destination subnet 10.10.5.0/24, it is forwarded to the destination. (Note that r2 is directly connected to the 10.10.5.0/24 subnet with one of its interfaces.)
+
+The packets traversing the reverse path are also forwarded accordingly.
+One thing to note is when r1 and r2 act as routers, they receive packets with destination IP addresses that are not assigned to their own interfaces. For the kernel to not discard such packets but forward them towards their destination, `/proc/sys/net/ipv4/ip_forward` parameter must be enabled. We checked the parameter and it was already enabled, so we were good to go.
+
 After that, we tested the routing tables by pinging the destination from the broker:
 ```
 yagmuroy@b:~$ ping -c 3 10.10.3.2
