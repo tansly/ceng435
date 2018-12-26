@@ -35,7 +35,6 @@ class ClientThread(threading.Thread):
         while True:
             # UDP socket awaits packets.
             (dataReceived, senderAddr) = self.csocket.recvfrom(config.msg_size)
-            print(len(dataReceived))
             # UDP socket unpacks the received packet.
             (seq_received, checksum, payload) = struct.unpack('!I16s' + str(len(dataReceived) - 20) + 's', dataReceived)
             
