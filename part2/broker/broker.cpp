@@ -222,20 +222,22 @@ void child_main(int recv_sock)
      * TODO: Those variables are related logically. A better C++ style could make
      * this relation explicit, no?
      * TODO: Maybe we should use separate mutexes for separate variables.
+     * This single mutex is really getting out of hand.
      */
     std::mutex window_mutex;
     std::vector<std::pair<Util::Packet, int>> sender_window(Util::window_size);
     std::condition_variable window_not_full;
+    std::condition_variable transmission_complete;
     std::uint32_t base {0};
     std::uint32_t next_seq_num {0};
+    std::uint32_t final_seq_num;
+    bool final_sent {false};
+    bool final_acked {false};
 
     /*
-     * Don't ask me why.
-     * XXX: Somehow, in the current state of affairs that my broken logic
-     * lead me into, this variable is also protected by the window_mutex.
+     * XXX: Don't ask me why.
      * This has quickly turned into a giant bowl of spaghetti.
-     * I guess I should properly use separate mutexes and protect this
-     * separately. Or better yet, completely rethink and rewrite the timer
+     * Maybe I should completely rethink and rewrite the timer
      * mechanism, this should not have been such a mess in the first place.
      */
     std::shared_ptr<bool> timer_cancelled;
@@ -258,8 +260,8 @@ void child_main(int recv_sock)
              */
             for (auto i = base; i < next_seq_num; ++i) {
                 auto &packet_and_len = sender_window[i % Util::window_size];
-                auto packet = packet_and_len.first;
-                auto len = packet_and_len.second;
+                auto &packet = packet_and_len.first;
+                auto &len = packet_and_len.second;
                 send(sock1, &packet, len, 0);
             }
             window_mutex.unlock();
@@ -283,18 +285,38 @@ void child_main(int recv_sock)
         for (;;) {
             std::unique_lock<std::mutex> window_lock {window_mutex};
             /*
+             * If we or the other sender has sent the final packet, we should
+             * terminate here.
+             */
+            if (final_sent) {
+                return;
+            }
+            /*
              * Sleep if the window is full. Will wake up if an ACK is received
              * (and the window slides).
              */
             window_not_full.wait(window_lock, [&]{return next_seq_num < base + Util::window_size;});
             auto packet_and_len = packet_and_len_q.dequeue();
+            auto &packet = packet_and_len.first;
+            auto &len = packet_and_len.second;
+            /*
+             * To signify the end of the data, we use a dummy packet with length 0.
+             * Note that this is not an actual packet that will be send to the
+             * destination, this is just for the sender threads to exit gracefully.
+             * The current protocol does not signify the end of the communication.
+             */
+            if (len == 0) {
+                final_sent = true;
+                final_seq_num = next_seq_num - 1;
+                return;
+            }
             /*
              * We set the sequence numbers here.
              */
             packet_and_len.first.seq_num = htonl(next_seq_num);
 
             sender_window[next_seq_num % Util::window_size] = packet_and_len;
-            send(dest_sock, &packet_and_len.first, packet_and_len.second, 0);
+            send(dest_sock, &packet, len, 0);
             if (base == next_seq_num) {
                 start_timer();
             }
@@ -315,6 +337,17 @@ void child_main(int recv_sock)
                 fprintf(stderr, "You done fucked up.\n");
                 continue;
             }
+
+            std::unique_lock<std::mutex> window_lock {window_mutex};
+            /*
+             * If the final packet was already ACKed, we return immediately.
+             */
+            if (final_acked || (final_sent && final_seq_num == ntohl(packet.seq_num))) {
+                final_acked = true;
+                transmission_complete.notify_one();
+                return;
+            }
+
             /*
              * XXX: Should check if the base is actually increased?
              * What about out-of-order ACK packets?
@@ -322,7 +355,6 @@ void child_main(int recv_sock)
              * However, it still might be good to check this. Think about it
              * a little bit more.
              */
-            std::unique_lock<std::mutex> window_lock {window_mutex};
             base = ntohl(packet.seq_num) + 1;
             std::cout << base << std::endl;
             if (base == next_seq_num) {
@@ -364,10 +396,26 @@ void child_main(int recv_sock)
         /*
          * We should probably compute the checksum at this point.
          */
+        packet_and_len_q.enqueue({packet, recved + Util::header_size});
 
         ++seq_num;
-        packet_and_len_q.enqueue({packet, recved + Util::header_size});
     }
+    /*
+     * At this point, we received and queued all data from the source.
+     * To signify the end of the data, put a dummy packet in the queue with
+     * length 0. This way a sender thread can know that there will be no more data,
+     * set a variable for termination and gracefully exit together with the other sender.
+     *
+     * The content of the packet does not matter, it will not be read anyways.
+     *
+     * This does not seem like a good solution; it is more of a hack. But
+     * I can't come up with a better way. Maybe the protocol can somehow signal
+     * the termination?
+     */
+    packet_and_len_q.enqueue({packet, 0});
+
+    std::unique_lock<std::mutex> window_lock {window_mutex};
+    transmission_complete.wait(window_lock, [&]{return final_acked;});
 
     exit(0);
 }
