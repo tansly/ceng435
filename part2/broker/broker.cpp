@@ -279,37 +279,43 @@ void child_main(int recv_sock)
     /*
      * XXX: This does not use sock2 right now.
      */
-    auto rdt_timeout_handler = [&] {
-        /*
-         * TODO: Do I need to find a better way than locking everything here?
-         ** We will eventually recv the ACKs when the lock is released.
-         ** Calling send() for all packets should not take a lot of time anyways.
-         * So I *think* it's fine. Needs a second look, though.
-         */
-        std::unique_lock<std::mutex> window_lock {window_mutex};
-        for (auto i = base; i < next_seq_num; ++i) {
-            auto &packet_and_len = sender_window[i % Util::window_size];
-            auto &packet = packet_and_len.first;
-            auto &len = packet_and_len.second;
+    auto rdt_timer_handler = [&] {
+        for (;;) {
+            if (timer_expired.exchange(false)) {
+                /*
+                 * TODO: Do I need to find a better way than locking everything here?
+                 ** We will eventually recv the ACKs when the lock is released.
+                 ** Calling send() for all packets should not take a lot of time anyways.
+                 * So I *think* it's fine. Needs a second look, though.
+                 */
+                std::unique_lock<std::mutex> window_lock {window_mutex};
+
+                /*
+                 * XXX: Is this necessary?
+                 */
+                if (final_acked) {
 #ifndef NDEBUG
-            std::cerr << "RTX: " << ntohl(packet.seq_num) << std::endl;
+                    std::cerr << "rdt_timer_handler(): Final ACKed" << std::endl;
 #endif
-            send(server.dr1_sock, &packet, len, 0);
+                    return;
+                }
+
+                start_timer();
+                for (auto i = base; i < next_seq_num; ++i) {
+                    auto &packet_and_len = sender_window[i % Util::window_size];
+                    auto &packet = packet_and_len.first;
+                    auto &len = packet_and_len.second;
+#ifndef NDEBUG
+                    std::cerr << "RTX: " << ntohl(packet.seq_num) << std::endl;
+#endif
+                    send(server.dr1_sock, &packet, len, 0);
+                }
+            }
         }
-        start_timer();
     };
 
     auto rdt_sender = [&](int dest_sock) {
         for (;;) {
-            /*
-             * TODO: Explain this.
-             */
-            if (timer_expired.exchange(false)) {
-                std::cerr << "Timer expired" << std::endl;
-                rdt_timeout_handler();
-                continue;
-            }
-
             std::unique_lock<std::mutex> window_lock {window_mutex};
             /*
              * If we or the other sender has sent the final packet, we should
@@ -411,6 +417,7 @@ void child_main(int recv_sock)
     std::thread r2_sender {rdt_sender, server.dr2_sock};
     std::thread r1_recver {rdt_recver, server.dr1_sock};
     std::thread r2_recver {rdt_recver, server.dr2_sock};
+    std::thread timer_thread {rdt_timer_handler};
 
     ssize_t recved;
     std::uint32_t seq_num = 0;
