@@ -31,7 +31,7 @@ namespace Util {
 /*
  * Sender timeout in milliseconds
  */
-constexpr auto timeout_value = std::chrono::milliseconds(500);
+constexpr auto timeout_value = std::chrono::milliseconds(50);
 
 /*
  * Window size as number of packets in the pipeline.
