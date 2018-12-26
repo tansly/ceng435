@@ -354,8 +354,9 @@ void child_main(int recv_sock)
              * UPDATE: I think the protocol should work correctly regardless.
              * However, it still might be good to check this. Think about it
              * a little bit more.
+             * UPDATE2: Now checking it.
              */
-            base = ntohl(packet.seq_num) + 1;
+            base = std::max(base, ntohl(packet.seq_num) + 1);
             std::cout << base << std::endl;
             if (base == next_seq_num) {
                 *timer_cancelled = true;
