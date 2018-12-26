@@ -34,6 +34,14 @@ In our CENG435 Term Project Part 2 we have implemented a reliable data transfer 
 \section{Setting Up the Environment}
  Routing table implementation, config file max size, tc netem experimentation set up.
 
+In the first part of the assignment we used applications on the routers to forward the packets. In the second part we have set the forwarding tables in the routers. This way Kernal handles the forwarding and we were able to got rid of the application layer forwarding. You can check the detailed explanation of how we set the forwarding tables in the README.md file.
+
+We use config files to determine the size of the packets. It can be adjusted through those files. It is important to keep in mind that our packet headers are 20 bytes and the minimum packet size must be larger than that.
+
+We have written our own shell scripts which send the codes to the nodes and set the netem/tc corruption, loss, reorder and delay parameters in the nodes.
+
+Then we can run our codes and start the experiments.
+
 \section{Design Decisions}
 
 In our design, we have decided to implement Go-Back-N protocol and added header to our packets. The size of our headers are 20 bytes in total. The first 4 bytes indicate the SEQ number of the packets and the remaining 16 bytes are used for MD5 Checksum. We have decided that including the packet length to the header was redundant since our Broker and Destination send and read the packets by a predetermined maximum size which is declared in the config file. Packets size less than that do not cause any problems.
@@ -42,7 +50,7 @@ When the scripts are executed, 5MB file is sent to Broker from Source over TCP. 
 
 Broker also has a timer. When the timer expires before Broker receives an ACK, it sends the packets in the Window again. Timer is resetted and Window is moved if a packet with SEQ number higher than the Base SEQ in Broker is received.
 
-Destination is a synchronized multithreaded application. Sockets which are binded to two different interfaces are run on these threads and awaits packets from different routers. When a packet with expected SEQ number is received, it is written to a file. SEQ number variable is secured with threading lock, preventing concurrent access to the variable by different threads. When a packet is received regardless of its contents, appropriate ACK packet is sent back, informing Broker about the current SEQ number in the Destination.
+Destination is a synchronized multithreaded application. Sockets which are binded to two different interfaces are run on these threads and awaits packets from different routers. When a packet with expected SEQ number is received, it is written to a file. SEQ number variable is secured with threading lock, preventing concurrent access to the variable by different threads. When a packet is received, regardless of its contents, appropriate ACK packet is sent back, informing Broker about the current SEQ number in the Destination.
 
 Timer in Broker handles the cases where the packets are lost. Our MD5 Checksum mechanism protects against corrupted packets and our SEQ number implementation preserves the integrity of the file when packets are received out of order.
 
