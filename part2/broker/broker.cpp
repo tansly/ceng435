@@ -332,7 +332,7 @@ void child_main(int recv_sock)
             if (final_sent) {
                 return;
             }
-            window_not_full.wait(window_lock, [&]{return next_seq_num < base + Util::window_size;});
+            window_not_full.wait(window_lock, [&]{return ntohl(packet.seq_num) < base + Util::window_size;});
 
             /*
              * To signify the end of the data, we use a packet with no payload,
@@ -350,17 +350,14 @@ void child_main(int recv_sock)
 #endif
             }
 
-            /*
-             * We set the sequence numbers here.
-             */
-            packet_and_len.first.seq_num = htonl(next_seq_num);
-            sender_window[next_seq_num % Util::window_size] = packet_and_len;
+            sender_window[ntohl(packet.seq_num) % Util::window_size] = packet_and_len;
 
             send(dest_sock, &packet, len, 0);
-            if (base == next_seq_num) {
+
+            next_seq_num = std::max(next_seq_num, ntohl(packet.seq_num) + 1);
+            if (base == next_seq_num - 1) {
                 start_timer();
             }
-            ++next_seq_num;
         }
     };
 
