@@ -302,27 +302,29 @@ void child_main(int recv_sock)
             auto packet_and_len = packet_and_len_q.dequeue();
             auto &packet = packet_and_len.first;
             auto &len = packet_and_len.second;
+
             /*
-             * To signify the end of the data, we use a dummy packet with length 0.
-             * Note that this is not an actual packet that will be send to the
-             * destination, this is just for the sender threads to exit gracefully.
-             * The current protocol does not signify the end of the communication.
+             * To signify the end of the data, we use a packet with no payload,
+             * only consists of a header.
              */
-            if (len == 0) {
+            if (len == Util::header_size) {
                 final_sent = true;
-                final_seq_num = next_seq_num - 1;
-                return;
+                final_seq_num = next_seq_num;
+#ifndef NDEBUG
+                std::cerr << "FIN: " << final_seq_num << std::endl;
+#endif
+            } else {
+#ifndef NDEBUG
+                std::cerr << "SEQ: " << ntohl(packet.seq_num) << std::endl;
+#endif
             }
+
             /*
              * We set the sequence numbers here.
              */
             packet_and_len.first.seq_num = htonl(next_seq_num);
-
             sender_window[next_seq_num % Util::window_size] = packet_and_len;
 
-#ifndef NDEBUG
-            std::cerr << "SEQ: " << ntohl(packet.seq_num) << std::endl;
-#endif
             send(dest_sock, &packet, len, 0);
             if (base == next_seq_num) {
                 start_timer();
@@ -354,6 +356,9 @@ void child_main(int recv_sock)
             if (final_acked || (final_sent && final_seq_num == ntohl(packet.seq_num))) {
                 final_acked = true;
                 transmission_complete.notify_one();
+#ifndef NDEBUG
+                std::cerr << "FIN-ACK: " << ntohl(packet.seq_num) << std::endl;
+#endif
                 return;
             }
 
@@ -417,16 +422,14 @@ void child_main(int recv_sock)
     /*
      * At this point, we received and queued all data from the source.
      * To signify the end of the data, put a dummy packet in the queue with
-     * length 0. This way a sender thread can know that there will be no more data,
+     * only a header. This way a sender thread can know that there will be no more data,
      * set a variable for termination and gracefully exit together with the other sender.
      *
-     * The content of the packet does not matter, it will not be read anyways.
+     * The destination will also know that the file is completely transferred this way.
      *
-     * This does not seem like a good solution; it is more of a hack. But
-     * I can't come up with a better way. Maybe the protocol can somehow signal
-     * the termination?
+     * The content of the packet.payload does not matter, it will not be read anyways.
      */
-    packet_and_len_q.enqueue({packet, 0});
+    packet_and_len_q.enqueue({packet, Util::header_size});
 
     std::unique_lock<std::mutex> window_lock {window_mutex};
     transmission_complete.wait(window_lock, [&]{return final_acked;});
