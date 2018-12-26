@@ -396,6 +396,10 @@ void child_main(int recv_sock)
      * TODO: Checksum (MD5)
      */
     Util::Packet packet;
+    /*
+     * Even though I set MSG_WAITALL, recv() can return prematurely. (signal caught etc.)
+     * Don't care lol.
+     */
     while ((recved = recv(recv_sock, &packet.payload, Util::payload_size, MSG_WAITALL)) > 0) {
         if (recved != Util::payload_size) {
             /*
@@ -429,6 +433,7 @@ void child_main(int recv_sock)
      *
      * The content of the packet.payload does not matter, it will not be read anyways.
      */
+    packet.seq_num = htonl(seq_num);
     packet_and_len_q.enqueue({packet, Util::header_size});
 
     std::unique_lock<std::mutex> window_lock {window_mutex};
