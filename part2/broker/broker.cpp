@@ -8,11 +8,13 @@
 #include <csignal>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/wait.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
+#include <atomic>
 #include <condition_variable>
 #include <future>
 #include <memory>
@@ -62,6 +64,7 @@ struct {
 
 void sigchld_handler(int sig)
 {
+    (void)sig;
     int old_errno = errno;
     while (waitpid(-1, NULL, WNOHANG) > 0) {
         server.curr_clients--;
@@ -184,6 +187,41 @@ int setup_sockets(void)
     return 0;
 }
 
+std::atomic<bool> timer_expired {false};
+void sigalrm_handler(int sig)
+{
+    if (sig == SIGALRM) {
+        timer_expired = true;
+        std::cerr << "ALARMAAAAAA" << std::endl;
+    }
+}
+
+void start_timer()
+{
+    struct itimerval itimer = {
+        .it_interval = { .tv_sec = 0, .tv_usec = 0},
+        .it_value = { .tv_sec = 0, .tv_usec = Util::timeout_millis * 1000 }
+    };
+    if (setitimer(ITIMER_REAL, &itimer, NULL) == -1) {
+        perror("start_timer()");
+    }
+
+    timer_expired = false;
+}
+
+void stop_timer()
+{
+    struct itimerval itimer = {
+        .it_interval = { .tv_sec = 0, .tv_usec = 0},
+        .it_value = { .tv_sec = 0, .tv_usec = 0 }
+    };
+    if (setitimer(ITIMER_REAL, &itimer, NULL) == -1) {
+        perror("stop_timer()");
+    }
+
+    timer_expired = false;
+}
+
 /*
  * Main routine for fork()ed child
  */
@@ -197,6 +235,13 @@ void child_main(int recv_sock)
     sa.sa_handler = SIG_DFL;
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
+
+    /*
+     * SIGALRM handler for timeouts.
+     */
+    sa.sa_handler = sigalrm_handler;
+    sigaction(SIGALRM, &sa, NULL);
+
     // Just to satisfy myself, free these things
     free(server.bind_addr);
     free(server.bind_port);
@@ -205,10 +250,7 @@ void child_main(int recv_sock)
     /*
      * Fancy stuff begins here.
      *
-     * TODO: Can we implement a lockless mechanism?
-     *
-     * The pair holds the packet and the size of the packet. This is a dirty hack
-     * until we determine if we should have a length field in the packet.
+     * The pairs in the queue hold the packet and the size of the packet.
      */
     Util::Queue<std::pair<Util::Packet, int>> packet_and_len_q;
 
@@ -235,57 +277,39 @@ void child_main(int recv_sock)
     bool final_acked {false};
 
     /*
-     * XXX: Don't ask me why.
-     * This has quickly turned into a giant bowl of spaghetti.
-     * Maybe I should completely rethink and rewrite the timer
-     * mechanism, this should not have been such a mess in the first place.
-     */
-    std::shared_ptr<bool> timer_cancelled;
-
-    /*
      * XXX: This does not use sock2 right now.
      */
-    auto rdt_timer_handler = [&](int sock1, int sock2, std::shared_ptr<bool> cancel_this_timer) {
-        std::this_thread::sleep_for(Util::timeout_value);
+    auto rdt_timeout_handler = [&] {
         /*
-         * The timer may have been cancelled if an ACK has been received and a new
-         * timer has been started.
+         * TODO: Do I need to find a better way than locking everything here?
+         ** We will eventually recv the ACKs when the lock is released.
+         ** Calling send() for all packets should not take a lot of time anyways.
+         * So I *think* it's fine. Needs a second look, though.
          */
-        while (window_mutex.lock(), !*cancel_this_timer) {
-            /*
-             * TODO: Do I need to find a better way than locking everything here?
-             ** We will eventually recv the ACKs when the lock is released.
-             ** Calling send() for all packets should not take a lot of time anyways.
-             * So I *think* it's fine. Needs a second look, though.
-             */
-            for (auto i = base; i < next_seq_num; ++i) {
-                auto &packet_and_len = sender_window[i % Util::window_size];
-                auto &packet = packet_and_len.first;
-                auto &len = packet_and_len.second;
+        std::unique_lock<std::mutex> window_lock {window_mutex};
+        for (auto i = base; i < next_seq_num; ++i) {
+            auto &packet_and_len = sender_window[i % Util::window_size];
+            auto &packet = packet_and_len.first;
+            auto &len = packet_and_len.second;
 #ifndef NDEBUG
-                std::cerr << "RTX: " << ntohl(packet.seq_num) << std::endl;
+            std::cerr << "RTX: " << ntohl(packet.seq_num) << std::endl;
 #endif
-                send(sock1, &packet, len, 0);
-            }
-            window_mutex.unlock();
-            std::this_thread::sleep_for(Util::timeout_value);
+            send(server.dr1_sock, &packet, len, 0);
         }
-        window_mutex.unlock();
-    };
-
-    auto start_timer = [&] {
-        /*
-         * XXX:
-         * I have to explain this madness or fix it.
-         */
-        timer_cancelled = std::make_shared<bool>(false);
-        std::packaged_task<void(int, int, std::shared_ptr<bool>)> timer {rdt_timer_handler};
-        std::thread timer_td {std::move(timer), server.dr1_sock, server.dr2_sock, timer_cancelled};
-        timer_td.detach();
+        start_timer();
     };
 
     auto rdt_sender = [&](int dest_sock) {
         for (;;) {
+            /*
+             * TODO: Explain this.
+             */
+            if (timer_expired.exchange(false)) {
+                std::cerr << "Timer expired" << std::endl;
+                rdt_timeout_handler();
+                continue;
+            }
+
             std::unique_lock<std::mutex> window_lock {window_mutex};
             /*
              * If we or the other sender has sent the final packet, we should
@@ -375,9 +399,8 @@ void child_main(int recv_sock)
             std::cerr << "ACK: " << ntohl(packet.seq_num) << std::endl;
 #endif
             if (base == next_seq_num) {
-                *timer_cancelled = true;
+                stop_timer();
             } else {
-                *timer_cancelled = true;
                 start_timer();
             }
             window_not_full.notify_one();
