@@ -226,7 +226,9 @@ void stop_timer()
 }
 
 /*
- * Main routine for fork()ed child
+ * Main routine for fork()ed child.
+ *
+ * TODO: Extracting the lambdas to standalone functions may aid readability.
  */
 void child_main(int recv_sock)
 {
@@ -487,15 +489,9 @@ void child_main(int recv_sock)
         packet.seq_num = htonl(seq_num);
 
         /*
-         * Checksum calculation.
+         * Checksum calculation. Definition in util.hpp.
          */
-        std::uint8_t md5_result[Util::checksum_size];
-        /*
-         * Checksum is calculated with the checksum field set to all zeros.
-         */
-        std::fill(packet.checksum, packet.checksum + Util::checksum_size, 0);
-        MD5((unsigned char*)&packet, packet_size, md5_result);
-        std::copy(md5_result, md5_result + Util::checksum_size, packet.checksum);
+        packet.set_checksum(packet_size);
 
         packet_and_len_q.enqueue({packet, packet_size});
 

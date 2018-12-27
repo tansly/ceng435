@@ -18,6 +18,7 @@
 #ifndef UTIL_HPP
 #define UTIL_HPP
 
+#include <algorithm>
 #include <condition_variable>
 #include <iostream>
 #include <mutex>
@@ -73,7 +74,21 @@ struct Packet {
         payload {0}
     {
     }
+
+    void set_checksum(size_t packet_size) {
+        std::uint8_t md5_result[Util::checksum_size];
+        /*
+         * Checksum is calculated with the checksum field set to all zeros.
+         */
+        std::fill(this->checksum, this->checksum + Util::checksum_size, 0);
+        MD5((unsigned char*)this, packet_size, md5_result);
+        std::copy(md5_result, md5_result + Util::checksum_size, this->checksum);
+    }
+
     std::uint32_t seq_num;
+    /*
+     * TODO: Consider using std::array.
+     */
     std::uint8_t checksum[checksum_size];
     std::uint8_t payload[payload_size];
 };
