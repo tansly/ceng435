@@ -218,15 +218,34 @@ void child_main(int recv_sock)
      * Will run in seperate threads for sending over r1 and r2.
      *
      * The mutex protects the window base and the sequence number and the window vector.
-     * (base, next_seq_num, sender_window)
+     * It grew out to protect other transmission window related variables as well:
+     * (sender_window, base, next_seq_num, final_seq_num, final_sent, final_acked)
+     * It also protects timer_cancelled in a way.
+     * TODO: Maybe we should use separate mutexes for separate variables.
+     * This single mutex is really getting out of hand. I think this is bad practice.
+     * Moreover, it already caused hard to detect deadlock-like situations already.
+     * It works now, though. Maybe I should just leave this alone.
      * TODO: Those variables are related logically. A better C++ style could make
      * this relation explicit, no?
-     * TODO: Maybe we should use separate mutexes for separate variables.
-     * This single mutex is really getting out of hand.
      */
     std::mutex window_mutex;
     std::vector<std::pair<Util::Packet, int>> sender_window(Util::window_size);
+    /*
+     * Condition variable that our sender threads wait for when the window is full:
+     *  Senders acquire window_mutex, check the if the window is full
+     *  and wait on this condition variable if it is full.
+     * When an ACK is received by our receiver threads, the window may have
+     * additional space, so the receiver threads signals this variable accordingly.
+     */
     std::condition_variable window_not_full;
+    /*
+     * The main thread (that receives data from the source) waits on this when
+     * there is no more data coming from the source. When the transmission to
+     * destination is completed, that is when the final ACK packet is received
+     * by one of our receiver threads, this variable is signalled. In this case
+     * the main thread continues and exits. The main *process*, though, keeps
+     * listening for incoming connections from the source.
+     */
     std::condition_variable transmission_complete;
     std::uint32_t base {0};
     std::uint32_t next_seq_num {0};
@@ -414,6 +433,7 @@ void child_main(int recv_sock)
          * If we htonl() the number here, they will have to ntohl(), do their thang
          * and htonl() again. Think of this issue before this thing turns into a
          * huge mess.
+         * UPDATE: If we do not do it here, worse things happen. Just leave this alone.
          */
         packet.seq_num = htonl(seq_num);
         /*
