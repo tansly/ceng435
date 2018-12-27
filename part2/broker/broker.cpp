@@ -398,7 +398,14 @@ void child_main(int recv_sock)
              */
             if (recv(dest_sock, &packet, Util::header_size, 0) != Util::header_size) {
 #ifndef NDEBUG
-                fprintf(stderr, "You done fucked up.\n");
+                std::cerr << "You done fucked up." << std::endl;
+#endif
+                continue;
+            }
+
+            if (!packet.check_checksum(Util::header_size)) {
+#ifndef NDEBUG
+                std::cerr << "CHECKSUM FAIL" << std::endl;
 #endif
                 continue;
             }

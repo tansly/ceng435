@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <condition_variable>
+#include <cstring>
 #include <iostream>
 #include <mutex>
 #include <thread>
@@ -75,6 +76,11 @@ struct Packet {
     {
     }
 
+    /*
+     * Given the packet size, compute the checksum of the packet and set the
+     * checksum field to the computed value. Checksum field is set to zero
+     * before the checksum is calculated. MD5 is used as the checksum function.
+     */
     void set_checksum(size_t packet_size) {
         std::uint8_t md5_result[Util::checksum_size];
         /*
@@ -82,7 +88,18 @@ struct Packet {
          */
         std::fill(this->checksum, this->checksum + Util::checksum_size, 0);
         MD5((unsigned char*)this, packet_size, md5_result);
-        std::copy(md5_result, md5_result + Util::checksum_size, this->checksum);
+        std::copy(std::begin(md5_result), std::end(md5_result), std::begin(this->checksum));
+    }
+
+    /*
+     * Given the packet size, compute and check the checksum of the packet.
+     */
+    bool check_checksum(size_t packet_size) {
+        Packet packet_copy;
+        std::memcpy((void*)&packet_copy, (void*)this, packet_size);
+        packet_copy.set_checksum(packet_size);
+        return std::equal(std::begin(this->checksum), std::end(this->checksum),
+                std::begin(packet_copy.checksum));
     }
 
     std::uint32_t seq_num;
