@@ -438,26 +438,44 @@ void child_main(int recv_sock)
     std::thread r2_recver {rdt_recver, server.dr2_sock};
     std::thread timer_thread {rdt_timer_handler};
 
-    ssize_t recved;
     std::uint32_t seq_num = 0;
     /*
      * Packet constructor initializes fields to zero.
      * TODO: Checksum (MD5)
      */
     Util::Packet packet;
-    /*
-     * Even though I set MSG_WAITALL, recv() can return prematurely. (signal caught etc.)
-     * Don't care lol.
-     */
-    while ((recved = recv(recv_sock, &packet.payload, Util::payload_size, MSG_WAITALL)) > 0) {
-        if (recved != Util::payload_size) {
+    for (;;) {
+        ssize_t recved = recv(recv_sock, &packet.payload, Util::payload_size, MSG_WAITALL);
+        if (recved == 0) {
             /*
-             * The last packet.
+             * Source has sent all data, we're done recving.
              */
 #ifndef NDEBUG
-            fprintf(stderr, "recv(recv_sock) returned %ld\n", recved);
+            std::cerr << "recv(source) returned 0" << std::endl;
 #endif
+            break;
+        } else if (recved == -1) {
+            if (errno == EINTR) {
+                /*
+                 * The recv() function was  interrupted  by  a  signal
+                 * that was caught, before any data was available.
+                 *
+                 * In this case, we just continue to recv().
+                 */
+#ifndef NDEBUG
+                perror("child_main()");
+#endif
+                continue;
+            } else {
+                /*
+                 * There is a serious error. Just exit(), I don't think we should
+                 * do anything more in this case.
+                 */
+                perror("child_main()");
+                exit(EXIT_FAILURE);
+            }
         }
+
         /*
          * XXX: The sender threads also have to keep track of the seq. numbers.
          * If we htonl() the number here, they will have to ntohl(), do their thang
@@ -486,10 +504,15 @@ void child_main(int recv_sock)
     packet.seq_num = htonl(seq_num);
     packet_and_len_q.enqueue({packet, Util::header_size});
 
+    /*
+     * We wait until the transmission is completed, e.g. the final ACK is received.
+     * It is obvious that we should, but I forgot to do that and wasted a lot of
+     * time debugging it.
+     */
     std::unique_lock<std::mutex> window_lock {window_mutex};
     transmission_complete.wait(window_lock, [&]{return final_acked;});
 
-    exit(0);
+    exit(EXIT_SUCCESS);
 }
 
 int start_server(const char *bind_addr, const char *bind_port, int max_clients)
