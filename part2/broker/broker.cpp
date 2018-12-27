@@ -14,6 +14,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <future>
@@ -21,6 +22,8 @@
 #include <mutex>
 #include <thread>
 #include <utility>
+
+#include <openssl/md5.h>
 
 #define BACKLOG 10
 
@@ -439,10 +442,6 @@ void child_main(int recv_sock)
     std::thread timer_thread {rdt_timer_handler};
 
     std::uint32_t seq_num = 0;
-    /*
-     * Packet constructor initializes fields to zero.
-     * TODO: Checksum (MD5)
-     */
     Util::Packet packet;
     for (;;) {
         ssize_t recved = recv(recv_sock, &packet.payload, Util::payload_size, MSG_WAITALL);
@@ -476,6 +475,8 @@ void child_main(int recv_sock)
             }
         }
 
+        auto packet_size = recved + Util::header_size;
+
         /*
          * XXX: The sender threads also have to keep track of the seq. numbers.
          * If we htonl() the number here, they will have to ntohl(), do their thang
@@ -484,10 +485,19 @@ void child_main(int recv_sock)
          * UPDATE: If we do not do it here, worse things happen. Just leave this alone.
          */
         packet.seq_num = htonl(seq_num);
+
         /*
-         * We should probably compute the checksum at this point.
+         * Checksum calculation.
          */
-        packet_and_len_q.enqueue({packet, recved + Util::header_size});
+        std::uint8_t md5_result[Util::checksum_size];
+        /*
+         * Checksum is calculated with the checksum field set to all zeros.
+         */
+        std::fill(packet.checksum, packet.checksum + Util::checksum_size, 0);
+        MD5((unsigned char*)&packet, packet_size, md5_result);
+        std::copy(md5_result, md5_result + Util::checksum_size, packet.checksum);
+
+        packet_and_len_q.enqueue({packet, packet_size});
 
         ++seq_num;
     }
