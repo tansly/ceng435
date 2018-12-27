@@ -445,16 +445,26 @@ void child_main(int recv_sock)
 
     std::uint32_t seq_num = 0;
     Util::Packet packet;
-    for (;;) {
+    bool source_finished = false;
+    while (!source_finished) {
         ssize_t recved = recv(recv_sock, &packet.payload, Util::payload_size, MSG_WAITALL);
         if (recved == 0) {
             /*
              * Source has sent all data, we're done recving.
+             *
+             * At this point, we received and queued all data from the source.
+             * To signify the end of the data, put a dummy packet in the queue with
+             * only a header. This way a sender thread can know that there will be no more data,
+             * set a variable for termination and gracefully exit together with the other sender.
+             *
+             * The destination will also know that the file is completely transferred this way.
+             *
+             * The content of the packet.payload does not matter, it will not be read anyways.
              */
+            source_finished = true;
 #ifndef NDEBUG
             std::cerr << "recv(source) returned 0" << std::endl;
 #endif
-            break;
         } else if (recved == -1) {
             if (errno == EINTR) {
                 /*
@@ -470,7 +480,7 @@ void child_main(int recv_sock)
             } else {
                 /*
                  * There is a serious error. Just exit(), I don't think we should
-                 * do anything more in this case.
+                 * do anything more in this case. I also don't know what to do.
                  */
                 perror("child_main()");
                 exit(EXIT_FAILURE);
@@ -497,20 +507,6 @@ void child_main(int recv_sock)
 
         ++seq_num;
     }
-    /*
-     * At this point, we received and queued all data from the source.
-     * To signify the end of the data, put a dummy packet in the queue with
-     * only a header. This way a sender thread can know that there will be no more data,
-     * set a variable for termination and gracefully exit together with the other sender.
-     *
-     * The destination will also know that the file is completely transferred this way.
-     *
-     * The content of the packet.payload does not matter, it will not be read anyways.
-     */
-    packet.seq_num = htonl(seq_num);
-    packet.set_checksum(Util::header_size);
-    packet_and_len_q.enqueue({packet, Util::header_size});
-
     /*
      * We wait until the transmission is completed, e.g. the final ACK is received.
      * It is obvious that we should, but I forgot to do that and wasted a lot of
