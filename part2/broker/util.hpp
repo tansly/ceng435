@@ -18,13 +18,17 @@
 #ifndef UTIL_HPP
 #define UTIL_HPP
 
+#include <algorithm>
 #include <condition_variable>
+#include <cstring>
 #include <iostream>
 #include <mutex>
 #include <thread>
 #include <queue>
 #include <cstdint>
 #include <chrono>
+
+#include <openssl/md5.h>
 
 namespace Util {
 
@@ -40,26 +44,29 @@ constexpr auto timeout_value = std::chrono::milliseconds(timeout_millis);
 constexpr auto window_size = 30;
 
 /*
- * Payload size in bytes.
+ * The maximum size of a packet, including the header and the payload.
+ * Defined in the specs as 1000 bytes.
+ * Note that the actual packet size may be less.
+ * XXX: Should we have a length field?
+ * UPDATE: We won't have one.
+ * Without a length field, the receiver may know the actual packet length by
+ * trying to recv() the maximum amount from its socket, and check the return value
+ * of the recv() for the actual amount.
  */
-constexpr auto payload_size = 980;
+constexpr auto max_packet_size = 1000;
 /*
  * Checksum size in bytes.
  * MD5 (128-bit, 16 bytes) is used as a checksum.
  */
-constexpr auto checksum_size = 16;
+constexpr auto checksum_size = MD5_DIGEST_LENGTH;
 /*
  * Header size in bytes. Size of the checksum + size of the seq. number.
  */
 constexpr auto header_size = checksum_size + sizeof(std::uint32_t);
 /*
- * The maximum size of a packet, including the header and the payload.
- * Not that the actual packet size may be less. XXX: Should we have a length field?
- * Without a length field, the receiver may know the actual packet length by
- * trying to recv() the maximum amount from its socket, and check the return value
- * of the recv() for the actual amount.
+ * Payload size in bytes.
  */
-constexpr auto max_packet_size = payload_size + header_size;
+constexpr auto payload_size = max_packet_size - (header_size + checksum_size);
 
 struct Packet {
     Packet() :
@@ -68,7 +75,37 @@ struct Packet {
         payload {0}
     {
     }
+
+    /*
+     * Given the packet size, compute the checksum of the packet and set the
+     * checksum field to the computed value. Checksum field is set to zero
+     * before the checksum is calculated. MD5 is used as the checksum function.
+     */
+    void set_checksum(size_t packet_size) {
+        std::uint8_t md5_result[Util::checksum_size];
+        /*
+         * Checksum is calculated with the checksum field set to all zeros.
+         */
+        std::fill(this->checksum, this->checksum + Util::checksum_size, 0);
+        MD5((unsigned char*)this, packet_size, md5_result);
+        std::copy(std::begin(md5_result), std::end(md5_result), std::begin(this->checksum));
+    }
+
+    /*
+     * Given the packet size, compute and check the checksum of the packet.
+     */
+    bool check_checksum(size_t packet_size) {
+        Packet packet_copy;
+        std::memcpy((void*)&packet_copy, (void*)this, packet_size);
+        packet_copy.set_checksum(packet_size);
+        return std::equal(std::begin(this->checksum), std::end(this->checksum),
+                std::begin(packet_copy.checksum));
+    }
+
     std::uint32_t seq_num;
+    /*
+     * TODO: Consider using std::array.
+     */
     std::uint8_t checksum[checksum_size];
     std::uint8_t payload[payload_size];
 };

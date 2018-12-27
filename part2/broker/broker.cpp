@@ -14,6 +14,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <future>
@@ -21,6 +22,8 @@
 #include <mutex>
 #include <thread>
 #include <utility>
+
+#include <openssl/md5.h>
 
 #define BACKLOG 10
 
@@ -223,7 +226,9 @@ void stop_timer()
 }
 
 /*
- * Main routine for fork()ed child
+ * Main routine for fork()ed child.
+ *
+ * TODO: Extracting the lambdas to standalone functions may aid readability.
  */
 void child_main(int recv_sock)
 {
@@ -393,7 +398,14 @@ void child_main(int recv_sock)
              */
             if (recv(dest_sock, &packet, Util::header_size, 0) != Util::header_size) {
 #ifndef NDEBUG
-                fprintf(stderr, "You done fucked up.\n");
+                std::cerr << "You done fucked up." << std::endl;
+#endif
+                continue;
+            }
+
+            if (!packet.check_checksum(Util::header_size)) {
+#ifndef NDEBUG
+                std::cerr << "CHECKSUM FAIL" << std::endl;
 #endif
                 continue;
             }
@@ -439,21 +451,27 @@ void child_main(int recv_sock)
     std::thread timer_thread {rdt_timer_handler};
 
     std::uint32_t seq_num = 0;
-    /*
-     * Packet constructor initializes fields to zero.
-     * TODO: Checksum (MD5)
-     */
     Util::Packet packet;
-    for (;;) {
+    bool source_finished = false;
+    while (!source_finished) {
         ssize_t recved = recv(recv_sock, &packet.payload, Util::payload_size, MSG_WAITALL);
         if (recved == 0) {
             /*
              * Source has sent all data, we're done recving.
+             *
+             * At this point, we received and queued all data from the source.
+             * To signify the end of the data, put a dummy packet in the queue with
+             * only a header. This way a sender thread can know that there will be no more data,
+             * set a variable for termination and gracefully exit together with the other sender.
+             *
+             * The destination will also know that the file is completely transferred this way.
+             *
+             * The content of the packet.payload does not matter, it will not be read anyways.
              */
+            source_finished = true;
 #ifndef NDEBUG
             std::cerr << "recv(source) returned 0" << std::endl;
 #endif
-            break;
         } else if (recved == -1) {
             if (errno == EINTR) {
                 /*
@@ -469,12 +487,14 @@ void child_main(int recv_sock)
             } else {
                 /*
                  * There is a serious error. Just exit(), I don't think we should
-                 * do anything more in this case.
+                 * do anything more in this case. I also don't know what to do.
                  */
                 perror("child_main()");
                 exit(EXIT_FAILURE);
             }
         }
+
+        auto packet_size = recved + Util::header_size;
 
         /*
          * XXX: The sender threads also have to keep track of the seq. numbers.
@@ -484,26 +504,16 @@ void child_main(int recv_sock)
          * UPDATE: If we do not do it here, worse things happen. Just leave this alone.
          */
         packet.seq_num = htonl(seq_num);
+
         /*
-         * We should probably compute the checksum at this point.
+         * Checksum calculation. Definition in util.hpp.
          */
-        packet_and_len_q.enqueue({packet, recved + Util::header_size});
+        packet.set_checksum(packet_size);
+
+        packet_and_len_q.enqueue({packet, packet_size});
 
         ++seq_num;
     }
-    /*
-     * At this point, we received and queued all data from the source.
-     * To signify the end of the data, put a dummy packet in the queue with
-     * only a header. This way a sender thread can know that there will be no more data,
-     * set a variable for termination and gracefully exit together with the other sender.
-     *
-     * The destination will also know that the file is completely transferred this way.
-     *
-     * The content of the packet.payload does not matter, it will not be read anyways.
-     */
-    packet.seq_num = htonl(seq_num);
-    packet_and_len_q.enqueue({packet, Util::header_size});
-
     /*
      * We wait until the transmission is completed, e.g. the final ACK is received.
      * It is obvious that we should, but I forgot to do that and wasted a lot of
