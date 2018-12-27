@@ -3,6 +3,7 @@ import config
 from socket import*
 import threading
 import struct
+import hashlib
 
 #Port of this server.
 localServerPort = 26299 + 300
@@ -36,8 +37,16 @@ class ClientThread(threading.Thread):
             # UDP socket awaits packets.
             (dataReceived, senderAddr) = self.csocket.recvfrom(config.msg_size)
             # UDP socket unpacks the received packet.
-            (seq_received, checksum, payload) = struct.unpack('!I16s' + str(len(dataReceived) - 20) + 's', dataReceived)
+            (seq_received, checksum_received, payload) = struct.unpack('!I16s' + str(len(dataReceived) - 20) + 's', dataReceived)
             
+            checksum = hashlib.md5()
+            checksum.update(struct.pack('!I', seq_received))
+            checksum.update(16 * b'\x00')
+            checksum.update(payload)
+            if checksum.digest() != checksum_received:
+                print("CHECKSUM FAIL")
+                continue
+
             # SEQ Lock acquired to prevent other treads accesing at the same time.
             seq_lock.acquire()
             global seq
@@ -55,9 +64,14 @@ class ClientThread(threading.Thread):
                 else:
                     with open(filename, 'ab') as file:
                         file.write(payload);
-        
+
             # Destination sends an ACK message indicating the SEQ number of the last received expected packet.
-            self.csocket.sendto(struct.pack('!I16s', seq, checksum), senderAddr)
+            ack_packet = struct.pack('!I16s', seq, 16 * b'\x00')
+            checksum = hashlib.md5()
+            checksum.update(ack_packet)
+            ack_packet = struct.pack('!I16s', seq, checksum.digest())
+            self.csocket.sendto(ack_packet, senderAddr)
+
             
             # SEQ Lock is released after use.
             seq_lock.release()
