@@ -508,6 +508,7 @@ void child_main(int recv_sock)
      * The content of the packet.payload does not matter, it will not be read anyways.
      */
     packet.seq_num = htonl(seq_num);
+    packet.set_checksum(Util::header_size);
     packet_and_len_q.enqueue({packet, Util::header_size});
 
     /*
