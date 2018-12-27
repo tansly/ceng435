@@ -8,12 +8,17 @@
 #include <csignal>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/wait.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
 #include <atomic>
+#include <condition_variable>
+#include <future>
+#include <memory>
+#include <mutex>
 #include <thread>
 #include <utility>
 
@@ -59,6 +64,7 @@ struct {
 
 void sigchld_handler(int sig)
 {
+    (void)sig;
     int old_errno = errno;
     while (waitpid(-1, NULL, WNOHANG) > 0) {
         server.curr_clients--;
@@ -181,6 +187,41 @@ int setup_sockets(void)
     return 0;
 }
 
+std::atomic<bool> timer_expired {false};
+void sigalrm_handler(int sig)
+{
+    if (sig == SIGALRM) {
+        timer_expired = true;
+        std::cerr << "ALARMAAAAAA" << std::endl;
+    }
+}
+
+void start_timer()
+{
+    struct itimerval itimer = {
+        .it_interval = { .tv_sec = 0, .tv_usec = 0},
+        .it_value = { .tv_sec = 0, .tv_usec = Util::timeout_millis * 1000 }
+    };
+    if (setitimer(ITIMER_REAL, &itimer, NULL) == -1) {
+        perror("start_timer()");
+    }
+
+    timer_expired = false;
+}
+
+void stop_timer()
+{
+    struct itimerval itimer = {
+        .it_interval = { .tv_sec = 0, .tv_usec = 0},
+        .it_value = { .tv_sec = 0, .tv_usec = 0 }
+    };
+    if (setitimer(ITIMER_REAL, &itimer, NULL) == -1) {
+        perror("stop_timer()");
+    }
+
+    timer_expired = false;
+}
+
 /*
  * Main routine for fork()ed child
  */
@@ -194,6 +235,13 @@ void child_main(int recv_sock)
     sa.sa_handler = SIG_DFL;
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
+
+    /*
+     * SIGALRM handler for timeouts.
+     */
+    sa.sa_handler = sigalrm_handler;
+    sigaction(SIGALRM, &sa, NULL);
+
     // Just to satisfy myself, free these things
     free(server.bind_addr);
     free(server.bind_port);
@@ -202,66 +250,269 @@ void child_main(int recv_sock)
     /*
      * Fancy stuff begins here.
      *
-     * The pair holds the packet and the size of the packet. This is a dirty hack
-     * until we determine if we should have a length field in the packet.
+     * The pairs in the queue hold the packet and the size of the packet.
      */
-    Util::Queue<std::pair<Util::Packet, int>> packet_q;
+    Util::Queue<std::pair<Util::Packet, int>> packet_and_len_q;
 
     /*
-     * The main sender function and shared variables of the rdt protocol.
+     * The sender function and shared variables of the rdt protocol.
      * Senders dequeue the packets and send them over disjoint links.
      * Will run in seperate threads for sending over r1 and r2.
+     *
+     * The mutex protects the window base and the sequence number and the window vector.
+     * It grew out to protect other transmission window related variables as well:
+     * (sender_window, base, next_seq_num, final_seq_num, final_sent, final_acked)
+     * It also protects timer_cancelled in a way.
+     * TODO: Maybe we should use separate mutexes for separate variables.
+     * This single mutex is really getting out of hand. I think this is bad practice.
+     * Moreover, it already caused hard to detect deadlock-like situations already.
+     * It works now, though. Maybe I should just leave this alone.
+     * TODO: Those variables are related logically. A better C++ style could make
+     * this relation explicit, no?
      */
+    std::mutex window_mutex;
     std::vector<std::pair<Util::Packet, int>> sender_window(Util::window_size);
-    std::atomic<int> sender_base {0};
-    auto rdt_main = [&](int dest_sock) {
+    /*
+     * Condition variable that our sender threads wait for when the window is full:
+     *  Senders acquire window_mutex, check the if the window is full
+     *  and wait on this condition variable if it is full.
+     * When an ACK is received by our receiver threads, the window may have
+     * additional space, so the receiver threads signals this variable accordingly.
+     */
+    std::condition_variable window_not_full;
+    /*
+     * The main thread (that receives data from the source) waits on this when
+     * there is no more data coming from the source. When the transmission to
+     * destination is completed, that is when the final ACK packet is received
+     * by one of our receiver threads, this variable is signalled. In this case
+     * the main thread continues and exits. The main *process*, though, keeps
+     * listening for incoming connections from the source.
+     */
+    std::condition_variable transmission_complete;
+    std::uint32_t base {0};
+    std::uint32_t next_seq_num {0};
+    std::uint32_t final_seq_num;
+    bool final_sent {false};
+    bool final_acked {false};
+
+    /*
+     * XXX: This does not use sock2 right now.
+     */
+    auto rdt_timer_handler = [&] {
         for (;;) {
-            auto packet = packet_q.dequeue();
-            send(dest_sock, &packet.first, packet.second, 0);
-            /*
-             * Save the packet in the sender window. We don't do any synchronization here
-             * because accesses from different threads will be to different vector cells.
-             * XXX: Can this cause any problems? I heard insane stuff could happen
-             * because of memory alignment and stuff even though the cells are
-             * distinct. Learn more about this issue.
-             */
-            sender_window[(sender_base + ntohl(packet.first.seq_num)) % Util::window_size] = packet;
+            if (timer_expired.exchange(false)) {
+                /*
+                 * TODO: Do I need to find a better way than locking everything here?
+                 ** We will eventually recv the ACKs when the lock is released.
+                 ** Calling send() for all packets should not take a lot of time anyways.
+                 * So I *think* it's fine. Needs a second look, though.
+                 */
+                std::unique_lock<std::mutex> window_lock {window_mutex};
+
+                /*
+                 * XXX: Is this necessary?
+                 */
+                if (final_acked) {
+#ifndef NDEBUG
+                    std::cerr << "rdt_timer_handler(): Final ACKed" << std::endl;
+#endif
+                    return;
+                }
+
+                start_timer();
+                for (auto i = base; i < next_seq_num; ++i) {
+                    auto &packet_and_len = sender_window[i % Util::window_size];
+                    auto &packet = packet_and_len.first;
+                    auto &len = packet_and_len.second;
+#ifndef NDEBUG
+                    std::cerr << "RTX: " << ntohl(packet.seq_num) << std::endl;
+#endif
+                    send(server.dr1_sock, &packet, len, 0);
+                }
+            }
         }
     };
 
-    std::thread r1_thread {rdt_main, server.dr1_sock};
-    std::thread r2_thread {rdt_main, server.dr2_sock};
+    auto rdt_sender = [&](int dest_sock) {
+        for (;;) {
+            /*
+             * Sleep if the window is full. Will wake up if an ACK is received
+             * (and the window slides).
+             */
+            auto packet_and_len = packet_and_len_q.dequeue();
+            auto &packet = packet_and_len.first;
+            auto &len = packet_and_len.second;
 
-    ssize_t recved;
+            std::unique_lock<std::mutex> window_lock {window_mutex};
+            /*
+             * If we or the other sender has sent the final packet, we should
+             * terminate here.
+             */
+            if (final_sent) {
+                return;
+            }
+
+            window_not_full.wait(window_lock, [&]{return ntohl(packet.seq_num) < base + Util::window_size;});
+
+            sender_window[ntohl(packet.seq_num) % Util::window_size] = packet_and_len;
+
+            send(dest_sock, &packet, len, 0);
+
+            /*
+             * To signify the end of the data, we use a packet with no payload,
+             * only consists of a header.
+             */
+            if (len == Util::header_size) {
+                final_sent = true;
+                final_seq_num = ntohl(packet.seq_num);
+#ifndef NDEBUG
+                std::cerr << "FIN: " << final_seq_num << std::endl;
+#endif
+            } else {
+#ifndef NDEBUG
+                std::cerr << "SEQ: " << ntohl(packet.seq_num) << std::endl;
+#endif
+            }
+
+            if (base == next_seq_num) {
+                start_timer();
+            }
+
+            next_seq_num = std::max(next_seq_num, ntohl(packet.seq_num) + 1);
+        }
+    };
+
+    /*
+     * rdt protocol ACK handler.
+     */
+    auto rdt_recver = [&](int dest_sock) {
+        for (;;) {
+            auto packet = Util::Packet();
+            /*
+             * ACK packets are packets without a payload.
+             */
+            if (recv(dest_sock, &packet, Util::header_size, 0) != Util::header_size) {
+#ifndef NDEBUG
+                fprintf(stderr, "You done fucked up.\n");
+#endif
+                continue;
+            }
+
+            std::unique_lock<std::mutex> window_lock {window_mutex};
+            /*
+             * If the final packet is ACKed, we return immediately.
+             */
+            if (final_acked || (final_sent && final_seq_num == ntohl(packet.seq_num))) {
+                final_acked = true;
+                transmission_complete.notify_one();
+#ifndef NDEBUG
+                std::cerr << "FIN-ACK: " << ntohl(packet.seq_num) << std::endl;
+#endif
+                return;
+            }
+
+            /*
+             * XXX: Should check if the base is actually increased?
+             * What about out-of-order ACK packets?
+             * UPDATE: I think the protocol should work correctly regardless.
+             * However, it still might be good to check this. Think about it
+             * a little bit more.
+             * UPDATE2: Now checking it.
+             */
+            base = std::max(base, ntohl(packet.seq_num) + 1);
+#ifndef NDEBUG
+            std::cerr << "ACK: " << ntohl(packet.seq_num) << std::endl;
+#endif
+            if (base == next_seq_num) {
+                stop_timer();
+            } else {
+                start_timer();
+            }
+            window_not_full.notify_one();
+        }
+    };
+
+    std::thread r1_sender {rdt_sender, server.dr1_sock};
+    std::thread r2_sender {rdt_sender, server.dr2_sock};
+    std::thread r1_recver {rdt_recver, server.dr1_sock};
+    std::thread r2_recver {rdt_recver, server.dr2_sock};
+    std::thread timer_thread {rdt_timer_handler};
+
     std::uint32_t seq_num = 0;
     /*
      * Packet constructor initializes fields to zero.
      * TODO: Checksum (MD5)
      */
     Util::Packet packet;
-    while ((recved = recv(recv_sock, &packet.payload, Util::payload_size, MSG_WAITALL)) > 0) {
-        if (recved != Util::payload_size) {
+    for (;;) {
+        ssize_t recved = recv(recv_sock, &packet.payload, Util::payload_size, MSG_WAITALL);
+        if (recved == 0) {
             /*
-             * TODO: What to do in this case? The final packet?
+             * Source has sent all data, we're done recving.
              */
-            fprintf(stderr, "recv(recv_sock) returned %ld\n", recved);
+#ifndef NDEBUG
+            std::cerr << "recv(source) returned 0" << std::endl;
+#endif
+            break;
+        } else if (recved == -1) {
+            if (errno == EINTR) {
+                /*
+                 * The recv() function was  interrupted  by  a  signal
+                 * that was caught, before any data was available.
+                 *
+                 * In this case, we just continue to recv().
+                 */
+#ifndef NDEBUG
+                perror("child_main()");
+#endif
+                continue;
+            } else {
+                /*
+                 * There is a serious error. Just exit(), I don't think we should
+                 * do anything more in this case.
+                 */
+                perror("child_main()");
+                exit(EXIT_FAILURE);
+            }
         }
+
         /*
          * XXX: The sender threads also have to keep track of the seq. numbers.
          * If we htonl() the number here, they will have to ntohl(), do their thang
          * and htonl() again. Think of this issue before this thing turns into a
          * huge mess.
+         * UPDATE: If we do not do it here, worse things happen. Just leave this alone.
          */
         packet.seq_num = htonl(seq_num);
         /*
          * We should probably compute the checksum at this point.
          */
+        packet_and_len_q.enqueue({packet, recved + Util::header_size});
 
         ++seq_num;
-        packet_q.enqueue({packet, recved + Util::header_size});
     }
+    /*
+     * At this point, we received and queued all data from the source.
+     * To signify the end of the data, put a dummy packet in the queue with
+     * only a header. This way a sender thread can know that there will be no more data,
+     * set a variable for termination and gracefully exit together with the other sender.
+     *
+     * The destination will also know that the file is completely transferred this way.
+     *
+     * The content of the packet.payload does not matter, it will not be read anyways.
+     */
+    packet.seq_num = htonl(seq_num);
+    packet_and_len_q.enqueue({packet, Util::header_size});
 
-    exit(0);
+    /*
+     * We wait until the transmission is completed, e.g. the final ACK is received.
+     * It is obvious that we should, but I forgot to do that and wasted a lot of
+     * time debugging it.
+     */
+    std::unique_lock<std::mutex> window_lock {window_mutex};
+    transmission_complete.wait(window_lock, [&]{return final_acked;});
+
+    exit(EXIT_SUCCESS);
 }
 
 int start_server(const char *bind_addr, const char *bind_port, int max_clients)

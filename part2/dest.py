@@ -17,7 +17,7 @@ eth2InterfaceIP = '10.10.3.2'
 filename = 'payload'
 
 #SEQ number couter. It is used to ensure the packets are received in the right order. Unexpected packets are discarded.
-seq = 0
+seq = -1
 
 #SEQ Lock is used to prevent different socket threads from accesing the SEQ number at the same time.
 seq_lock = threading.Lock()
@@ -47,7 +47,8 @@ class ClientThread(threading.Thread):
                 seq = seq_received
                 
                 # If the packets payload is NULL then the file is fully received. Broker handles this.
-                if (len(dataReceived) == 0):
+                # XXX: 20 is the header length
+                if (len(dataReceived) == 20):
                     print('File received')
                 
                 # Else write the payload to the file.

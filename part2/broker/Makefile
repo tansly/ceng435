@@ -1,5 +1,5 @@
 CXX=g++
-CXXFLAGS=-std=c++17 -pthread -Wall -Wextra -O2
+CXXFLAGS=-std=c++17 -pthread -Wall -Wextra -O0 -ggdb
 SRCS=broker.cpp
 OBJS=$(patsubst %.cpp, %.o, $(SRCS))
 HDRS=util.hpp
