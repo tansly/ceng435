@@ -294,8 +294,8 @@ void child_main(int recv_sock)
      * listening for incoming connections from the source.
      */
     std::condition_variable transmission_complete;
-    std::uint32_t base {0};
-    std::uint32_t next_seq_num {0};
+    std::uint32_t base {1};
+    std::uint32_t next_seq_num {1};
     std::uint32_t final_seq_num;
     bool final_sent {false};
     bool final_acked {false};
@@ -326,7 +326,7 @@ void child_main(int recv_sock)
 
                 start_timer();
                 for (auto i = base; i < next_seq_num; ++i) {
-                    auto &packet_and_len = sender_window[i % Util::window_size];
+                    auto &packet_and_len = sender_window[(i - 1) % Util::window_size];
                     auto &packet = packet_and_len.first;
                     auto &len = packet_and_len.second;
 #ifndef NDEBUG
@@ -359,7 +359,7 @@ void child_main(int recv_sock)
 
             window_not_full.wait(window_lock, [&]{return ntohl(packet.seq_num) < base + Util::window_size;});
 
-            sender_window[ntohl(packet.seq_num) % Util::window_size] = packet_and_len;
+            sender_window[(ntohl(packet.seq_num) - 1) % Util::window_size] = packet_and_len;
 
             send(dest_sock, &packet, len, 0);
 
@@ -450,7 +450,7 @@ void child_main(int recv_sock)
     std::thread r2_recver {rdt_recver, server.dr2_sock};
     std::thread timer_thread {rdt_timer_handler};
 
-    std::uint32_t seq_num = 0;
+    std::uint32_t seq_num = 1;
     Util::Packet packet;
     bool source_finished = false;
     while (!source_finished) {

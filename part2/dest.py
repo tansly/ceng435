@@ -18,7 +18,7 @@ eth2InterfaceIP = '10.10.3.2'
 filename = 'payload'
 
 #SEQ number couter. It is used to ensure the packets are received in the right order. Unexpected packets are discarded.
-seq = -1
+seq = 0
 
 #SEQ Lock is used to prevent different socket threads from accesing the SEQ number at the same time.
 seq_lock = threading.Lock()
@@ -43,16 +43,15 @@ class ClientThread(threading.Thread):
             checksum.update(struct.pack('!I', seq_received))
             checksum.update(16 * b'\x00')
             checksum.update(payload)
-            if checksum.digest() != checksum_received:
-                print("CHECKSUM FAIL")
-                continue
 
             # SEQ Lock acquired to prevent other treads accesing at the same time.
             seq_lock.acquire()
             global seq
             
             # If the packet has the expected SEQ number..
-            if (seq_received == seq + 1):
+            if checksum.digest() != checksum_received:
+                print("CHECKSUM FAIL")
+            elif (seq_received == seq + 1):
                 seq = seq_received
                 
                 # If the packets payload is NULL then the file is fully received. Broker handles this.
