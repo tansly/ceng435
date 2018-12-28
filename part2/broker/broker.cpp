@@ -333,12 +333,13 @@ void child_main(int recv_sock)
                     std::cerr << "RTX: " << ntohl(packet.seq_num) << std::endl;
 #endif
                     send(server.dr1_sock, &packet, len, 0);
+                    send(server.dr2_sock, &packet, len, 0);
                 }
             }
         }
     };
 
-    auto rdt_sender = [&](int dest_sock) {
+    auto rdt_sender = [&] {
         for (;;) {
             /*
              * Sleep if the window is full. Will wake up if an ACK is received
@@ -361,7 +362,8 @@ void child_main(int recv_sock)
 
             sender_window[(ntohl(packet.seq_num) - 1) % Util::window_size] = packet_and_len;
 
-            send(dest_sock, &packet, len, 0);
+            send(server.dr1_sock, &packet, len, 0);
+            send(server.dr2_sock, &packet, len, 0);
 
             /*
              * To signify the end of the data, we use a packet with no payload,
@@ -444,8 +446,8 @@ void child_main(int recv_sock)
         }
     };
 
-    std::thread r1_sender {rdt_sender, server.dr1_sock};
-    std::thread r2_sender {rdt_sender, server.dr2_sock};
+    std::thread r1_sender {rdt_sender};
+    //std::thread r2_sender {rdt_sender, server.dr2_sock};
     std::thread r1_recver {rdt_recver, server.dr1_sock};
     std::thread r2_recver {rdt_recver, server.dr2_sock};
     std::thread timer_thread {rdt_timer_handler};
