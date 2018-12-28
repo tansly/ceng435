@@ -60,19 +60,43 @@ TODO
 
 \section{Experiments}
 
+In our experiments we have plotted loss, corruption and reordering tests. We have changed netem/tc properties of the links between Broker and Destination while conducting these tests. For each property we have plotted 3 different scenarios. 
+
 \subsection{Packet Loss Test}\label{AA}
 
-Apart from delay tests we have also implemented packet loss test. In this test we have sent 1000 consecutive packets from Source and observed how many of them reached to Broker and then to Destination. It's important to keep in mind that our packet size is 8 bytes. 
+For the packet loss tests we have set the loss and delay properties of the links. 3 different scenarios we have plotted can be seen here:
+
 \begin{itemize}
-    \item 1000/1000: All of the packets sent by Source were received by Broker. Since the connection between Source and Broker is over TCP, packet loss is not expected (TCP is a reliable protocol and it recovers from lost segments).
-    \item 67/1000: Only 67 of the packets were received by the destination indicating a significant packet loss. Messages reach the Broker with a rate of 1000 kbps (neglecting the overhead of TCP) and they are put (over a UDP socket, with nothing limiting their rate) to the outgoing link which has a capacity 10 kbps. In other words, Broker tries to send datagrams through the link with a rate higher than the capacity of the link. Since UDP does not employ any kind of congestion control or flow control and does not guarantee that the datagrams will reach the destination, most (more than 90\%) of the messages are lost. We also experimented by sending packets of size 128 bytes. In this scenario we have observed an even higher packet loss rate, with only 17 packets reaching Destination. We have also observed that when we increased the size of the packets by a factor of 4, the amount of the packets delivered to Destination was decreased by a factor of 4. \\ \\ \\
+    \item \textbf{Configuration 1:} 3ms delay and $\%0.5$ loss
+    \item \textbf{Configuration 2:} 3ms delay and $\%10$ loss
+    \item \textbf{Configuration 3:} 3ms delay and $\%20$ loss
 \end{itemize}
 
+\subsection{Packet Corruption Test}\label{AA}
 
+For the packet corruption tests we have set the corrupt and delay properties of the links. 3 different scenarios we have plotted can be seen here:
+
+\begin{itemize}
+    \item \textbf{Configuration 1:} 3ms delay and $\%0.2$ corrupt
+    \item \textbf{Configuration 2:} 3ms delay and $\%10$ corrupt
+    \item \textbf{Configuration 3:} 3ms delay and $\%20$ corrupt
+\end{itemize}
+
+\subsection{Packet Reordering Test}\label{AA}
+
+For the packet reordering tests we have set the reorder and delay properties of the links. 3 different scenarios we have plotted can be seen here:
+
+\begin{itemize}
+    \item \textbf{Configuration 1:} 3ms delay and $\%1$ reorder
+    \item \textbf{Configuration 2:} 3ms delay and $\%10$ reorder
+    \item \textbf{Configuration 3:} 3ms delay and $\%35$ reorder
+\end{itemize}
 
 \subsection{Emulated Network Delay Test}\label{AA}
 
 In our experiments we have plotted the 3 scenarios given in the homework text:
+
+ You will change the loss, corruption and reordering property of the links explained below. 
 
 \begin{itemize}
     \item \textbf{Experiment 1:} 1ms $\pm$ 5ms
