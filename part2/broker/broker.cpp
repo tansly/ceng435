@@ -260,10 +260,7 @@ void child_main(int recv_sock)
     Util::Queue<std::pair<Util::Packet, int>> packet_and_len_q;
 
     /*
-     * The sender function and shared variables of the rdt protocol.
-     * Senders dequeue the packets and send them over disjoint links.
-     * Will run in seperate threads for sending over r1 and r2.
-     *
+     * Shared variables of the rdt protocol.
      * The mutex protects the window base and the sequence number and the window vector.
      * It grew out to protect other transmission window related variables as well:
      * (sender_window, base, next_seq_num, final_seq_num, final_sent, final_acked)
@@ -300,9 +297,6 @@ void child_main(int recv_sock)
     bool final_sent {false};
     bool final_acked {false};
 
-    /*
-     * XXX: This does not use sock2 right now.
-     */
     auto rdt_timer_handler = [&] {
         for (;;) {
             if (timer_expired.exchange(false)) {
@@ -333,12 +327,25 @@ void child_main(int recv_sock)
                     std::cerr << "RTX: " << ntohl(packet.seq_num) << std::endl;
 #endif
                     send(server.dr1_sock, &packet, len, 0);
+                    send(server.dr2_sock, &packet, len, 0);
                 }
             }
         }
     };
 
-    auto rdt_sender = [&](int dest_sock) {
+    /*
+     * The sender function of the rdt protocol.
+     * Sender dequeues the packets and sends them over disjoint links.
+     * A single sender thread sends the same packet (duplicate) over both links.
+     * This approach was chosen to improve reliability: In high-loss (or corruption)
+     * scenarios, using both links to send pipelined packets do not help much
+     * because the destination discards out of sequence packets (caused by lost/corrupt packets).
+     * However, if we duplicate the packets on both links, we increase our chance
+     * of transferring the packet. The tests we conducted show this approach
+     * more than doubles our transfer rate over the other approach where we
+     * use both links to send different packets of the pipeline.
+     */
+    auto rdt_sender = [&] {
         for (;;) {
             /*
              * Sleep if the window is full. Will wake up if an ACK is received
@@ -349,19 +356,16 @@ void child_main(int recv_sock)
             auto &len = packet_and_len.second;
 
             std::unique_lock<std::mutex> window_lock {window_mutex};
-            /*
-             * If we or the other sender has sent the final packet, we should
-             * terminate here.
-             */
-            if (final_sent) {
-                return;
-            }
 
             window_not_full.wait(window_lock, [&]{return ntohl(packet.seq_num) < base + Util::window_size;});
 
             sender_window[(ntohl(packet.seq_num) - 1) % Util::window_size] = packet_and_len;
 
-            send(dest_sock, &packet, len, 0);
+            /*
+             * Why send the same packet over both links? See comment for the function.
+             */
+            send(server.dr1_sock, &packet, len, 0);
+            send(server.dr2_sock, &packet, len, 0);
 
             /*
              * To signify the end of the data, we use a packet with no payload,
@@ -444,8 +448,7 @@ void child_main(int recv_sock)
         }
     };
 
-    std::thread r1_sender {rdt_sender, server.dr1_sock};
-    std::thread r2_sender {rdt_sender, server.dr2_sock};
+    std::thread r1_sender {rdt_sender};
     std::thread r1_recver {rdt_recver, server.dr1_sock};
     std::thread r2_recver {rdt_recver, server.dr2_sock};
     std::thread timer_thread {rdt_timer_handler};
