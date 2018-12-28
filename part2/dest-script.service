@@ -1,0 +1,11 @@
+[Unit]
+Description=Experiment script
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStartPre=/bin/rm -f /users/yagmuroy/payload
+ExecStart=/usr/bin/python3 /users/yagmuroy/dest.py
+ExecStopPost=/usr/bin/md5sum /users/yagmuroy/payload
+Restart=never

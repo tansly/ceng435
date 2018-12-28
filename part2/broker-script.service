@@ -1,0 +1,9 @@
+[Unit]
+Description=Experiment script
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/users/yagmuroy/broker/broker.out
+Restart=never
