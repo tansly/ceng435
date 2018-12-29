@@ -114,7 +114,8 @@ corruption scenarios. So, whenever it wants to send a packet to the destination,
 it duplicates the packet to both links. This provides a better chance of sending
 the packet successfully when there are lots of corrupt or lost packets. We've also
 tried another approach to sending separate packets in parallel (using separate threads)
-over both links, but our current approach proved to be more than two times faster.
+over both links, but our current approach proved to be more than two times faster
+in high loss and high corruption scenarios.
 The reason is that when there is high loss in the link, it is not beneficial to
 send more packets quickly back to back because there will eventually be a lost packet and
 the window would have to be resent again. However, if we provide redundancy by sending a
