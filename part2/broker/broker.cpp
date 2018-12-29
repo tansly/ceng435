@@ -402,7 +402,7 @@ void child_main(int recv_sock)
              */
             if (recv(dest_sock, &packet, Util::header_size, 0) != Util::header_size) {
 #ifndef NDEBUG
-                std::cerr << "You done fucked up." << std::endl;
+                std::cerr << "You done messed up." << std::endl;
 #endif
                 continue;
             }
