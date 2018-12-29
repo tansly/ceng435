@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 
 # Loss tests
-#./del_tc.sh
-#./set_loss.sh 0.5
-#for i in {1..20}; do
-#    ssh b_geni -- systemctl --user restart broker-script.service
-#    ssh d_geni -- systemctl --user restart dest-script.service
-#    ssh s_geni -- /usr/bin/time -f"%e" ./source.sh file 2>>./data/loss_1.txt
-#done
+./del_tc.sh
+./set_loss.sh 0.5
+for i in {1..20}; do
+    ssh b_geni -- systemctl --user restart broker-script.service
+    ssh d_geni -- systemctl --user restart dest-script.service
+    ssh s_geni -- /usr/bin/time -f"%e" ./source.sh file 2>>./data/loss_1.txt
+done
 
 ./del_tc.sh
 ./set_loss.sh 10
