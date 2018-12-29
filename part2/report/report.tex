@@ -60,107 +60,100 @@ TODO
 
 \section{Experiments}
 
-In our experiments we have plotted loss, corruption and reordering tests. We have changed netem/tc properties of the links between Broker and Destination while conducting these tests. For each property we have plotted 3 different scenarios. 
+In our experiments we have plotted the results of loss, corruption and reordering tests. We have changed netem/tc properties of the links between Broker and Destination while conducting these tests.
+For each property we have plotted three different scenarios.
 
 \subsection{Packet Loss Test}\label{AA}
 
-For the packet loss tests we have set the loss and delay properties of the links. 3 different scenarios we have plotted can be seen here:
-
+For the packet loss tests we have set the loss and delay properties of the links as follows:
 \begin{itemize}
-    \item \textbf{Configuration 1:} 3ms delay and $\%0.5$ loss
-    \item \textbf{Configuration 2:} 3ms delay and $\%10$ loss
-    \item \textbf{Configuration 3:} 3ms delay and $\%20$ loss
+    \item \textbf{Configuration 1:} 3ms delay and $0.5\%$ loss
+    \item \textbf{Configuration 2:} 3ms delay and $10\%$ loss
+    \item \textbf{Configuration 3:} 3ms delay and $20\%$ loss
 \end{itemize}
+For each of the scenarios above, 23 samples were collected.
 
-\subsection{Packet Corruption Test}\label{AA}
-
-For the packet corruption tests we have set the corrupt and delay properties of the links. 3 different scenarios we have plotted can be seen here:
-
-\begin{itemize}
-    \item \textbf{Configuration 1:} 3ms delay and $\%0.2$ corrupt
-    \item \textbf{Configuration 2:} 3ms delay and $\%10$ corrupt
-    \item \textbf{Configuration 3:} 3ms delay and $\%20$ corrupt
-\end{itemize}
-
-\subsection{Packet Reordering Test}\label{AA}
-
-For the packet reordering tests we have set the reorder and delay properties of the links. 3 different scenarios we have plotted can be seen here:
-
-\begin{itemize}
-    \item \textbf{Configuration 1:} 3ms delay and $\%1$ reorder
-    \item \textbf{Configuration 2:} 3ms delay and $\%10$ reorder
-    \item \textbf{Configuration 3:} 3ms delay and $\%35$ reorder
-\end{itemize}
-
-\subsection{Emulated Network Delay Test}\label{AA}
-
-In our experiments we have plotted the 3 scenarios given in the homework text:
-
- You will change the loss, corruption and reordering property of the links explained below. 
-
-\begin{itemize}
-    \item \textbf{Experiment 1:} 1ms $\pm$ 5ms
-    \item \textbf{Experiment 2:} 20ms $\pm$ 5ms
-    \item \textbf{Experiment 3:} 60ms $\pm$ 5ms
-\end{itemize}
-You can find end-to-end delay results of these experiments in Figure~\ref{fig:graph}.
-
-Apart from these experiments we have also observed the end-to-end delay without any network delay emulations. In the first glance we could not make much sense of the results. That's why we have concluded to  make even more test with different emulated network delays and compare those results. Remaining experiments, their mean delays, jitter delays and the estimated end-to-end delay can be seen below:
-
-\begin{itemize}
-    \item \textbf{Experiment 0:} 0 emulated delay, end-to-end delay: 20ms
-    \item \textbf{Experiment 4:} 1ms $\pm$ 1 ms, end-to-end delay: 20ms
-    \item \textbf{Experiment 5:} 5ms $\pm$ 1ms, end-to-end delay: 20ms
-    \item \textbf{Experiment 6:} 7.5ms $\pm$ 1ms, end-to-end delay: 20ms
-    \item \textbf{Experiment 7:} 10ms $\pm$ 1ms, end-to-end delay: 20ms
-    \item \textbf{Experiment 8:} 12.5ms $\pm$ 1ms, end-to-end delay: 25ms
-    \item \textbf{Experiment 9:} 15ms $\pm$ 1ms, end-to-end delay: 30ms
-    \item \textbf{Experiment 10:} 20ms $\pm$ 1ms, end-to-end delay: 40ms
-    \item \textbf{Experiment 11:} 50ms $\pm$ 1ms, end-to-end delay: 100ms
-    \item \textbf{Experiment 12:} 100ms $\pm$ 1ms, end-to-end delay: 200ms
-\end{itemize}
-
-For our experiments we have first set the network emulation delays. We have collected the end-to-end delay data of 1100 packets for each experiment. Using these data we have calculated the mean delays and 95\% confidence intervals.
-
-Figure~\ref{fig:graph} illustrates our experimental results for Experiments 0, 1, 2 and 3.
-We calculated the 95\% confidence intervals as 19.2 to 19.6 for Experiment 0,
-19.1 to 19.7 for Experiment 1, 40.6 to 41.2 for Experiment 2 and 120.9 to 121.1
-for Experiment 3. Table~\ref{table:data} shows the summary of these results.
-
-In the light of all the experiments, we have concluded that when the netem/tc delay is set lower than the actual end-to-end delay, it does not effect the end-to-end delay of the packets. We observed looking at the Experiments 1, 4, 5, 6, and 7 that end-to-end delay remains the same even though netem/tc delay was increased gradually but did not exceed the actual end-to-end delay. When, the netem/tc delay is bigger than the actual end-to-end delay, netem/tc delay is not added on the top of the actual delay but it extends the delay at the each node to the set amount as it can be seen in the Experiments 8, 9, 10, 11 and 12. Since the delay between Source and Broker is negligible (Link capacity is 100 times of the other links in the network) netem/tc delay set on the UDP nodes, determine the total end-to-end delay.
-
-\begin{figure}
-    \centering
-    \includegraphics[scale=0.6]{graphics/plt}
-    \caption{Network emulation delay vs.\ end-to-end delay}\label{fig:graph}
-\end{figure}
-
-Having read the manual of netem/tc we had hard time making sense about the results we got from the experiments. We were expecting to see our end-to-end delay to increase by network emulation delay for each network delay emulated node. Namely for each pass through broker and router. As an example when we set netem/tc delay to 20ms with 5ms jitter we expected to see the delay: $20ms$ (actual delay) $+$ $20ms$ (delay from broker) $+$ $20ms$ (delay from router 1) $=$ $60ms$.
-
-Moreover, with or without emulated delays, the first few packets sent would return
-very quickly (in the order of a few milliseconds) but as the source sent more packets,
-the delay would quickly increase to a higher value (around 39 milliseconds round trip time with no
-emulated delay). To make sense of this, we ran some experiments using \textbf{ping}
-with different packet sizes and time intervals. Curiously, a similar pattern was observed
-with certain configurations; first few packets would arrive in a few milliseconds, then
-after a point, packets would be delayed and started to drop. This may be interpreted
-as the link capacity being exceeded; however this should not have happened in our test programs
-because the source does not send any new packets until the feedback of the last packet it had sent
-returned. The source should not be able to congest the link, yet it does
-(or an implementation error we could not detect causes this strange pattern).
-
+Table~\ref{table:loss} summarizes our experiment results with 95\% confidence intervals.
+Figure~\ref{fig:loss} illustrates the results graphically.
 \begin{table}
     \centering
     \begin{tabular}{c c c c}
         \toprule
-        NetEm delay & $\mu$ & $\sigma$ & Error \\
-        $0ms$   &    $19.4ms$   &   $3.43ms$    &   $0.203ms$ \\
-        $1ms$   &    $19.4ms$   &   $4.47ms$    &   $0.264ms$ \\
-        $20ms$   &    $40.9ms$   &   $4.92ms$    &   $0.291ms$ \\
-        $60ms$   &    $121ms$   &   $4.99ms$    &   $0.295ms$ \\
+        NetEm loss & $\mu$ & $\sigma$ & Error \\
+        $0.5\%$   &   $97.1s$   &   $1.4s$    &   $0.572s$ \\
+        $10\%$   &    $294s$   &   $6.68s$    &   $2.73s$ \\
+        $20\%$   &    $559s$   &   $17s$    &   $6.95s$ \\
         \bottomrule
-    \end{tabular}\label{table:data} \\
-    \caption{Summary of experimental data}\label{table:data}
+    \end{tabular}\label{table:loss} \\
+    \caption{Summary of packet loss experiment results}\label{table:loss}
 \end{table}
+
+\begin{figure}
+    \centering
+    \includegraphics[scale=0.6]{graphics/plot-loss}
+    \caption{Emulated loss vs.\ file transfer time}\label{fig:loss}
+\end{figure}
+
+\subsection{Packet Corruption Test}\label{AA}
+
+For the packet corruption tests we have set the corruption and delay properties of the links as follows:
+\begin{itemize}
+    \item \textbf{Configuration 1:} 3ms delay and $0.2\%$ corruption
+    \item \textbf{Configuration 2:} 3ms delay and $10\%$ corruption
+    \item \textbf{Configuration 3:} 3ms delay and $20\%$ corruption
+\end{itemize}
+For each of the scenarios above, 23 samples were collected.
+
+Table~\ref{table:corruption} summarizes our experiment results with 95\% confidence intervals.
+Figure~\ref{fig:corruption} illustrates the results graphically.
+\begin{table}
+    \centering
+    \begin{tabular}{c c c c}
+        \toprule
+        NetEm corruption & $\mu$ & $\sigma$ & Error \\
+        $0.2\%$   &   $89.5s$   &   $0.597s$    &   $0.249s$ \\
+        $10\%$   &    $195s$   &   $7.04s$    &   $2.94s$ \\
+        $20\%$   &    $446s$   &   $15.5s$    &   $6.48s$ \\
+        \bottomrule
+    \end{tabular}\label{table:corruption} \\
+    \caption{Summary of packet corruption experiment results}\label{table:corruption}
+\end{table}
+
+\begin{figure}
+    \centering
+    \includegraphics[scale=0.6]{graphics/plot-corruption}
+    \caption{Emulated corruption vs.\ file transfer time}\label{fig:corruption}
+\end{figure}
+
+\subsection{Packet Reordering Test}\label{AA}
+
+For the packet reordering tests we have set the reorder and delay properties of the links as follows:
+\begin{itemize}
+    \item \textbf{Configuration 1:} 3ms delay and $1\%$ reorder
+    \item \textbf{Configuration 2:} 3ms delay and $10\%$ reorder
+    \item \textbf{Configuration 3:} 3ms delay and $35\%$ reorder
+\end{itemize}
+For each of the scenarios above, 22 samples were collected.
+
+Table~\ref{table:reorder} summarizes our experiment results with 95\% confidence intervals.
+Figure~\ref{fig:reorder} illustrates the results graphically.
+\begin{table}
+    \centering
+    \begin{tabular}{c c c c}
+        \toprule
+        NetEm reorder & $\mu$ & $\sigma$ & Error \\
+        $1\%$   &   $89.3s$   &   $0.004s$    &   $0.002s$ \\
+        $10\%$   &    $89.5s$   &   $0.36s$    &   $0.148s$ \\
+        $35\%$   &    $99.8s$   &   $12.8s$    &   $5.35s$ \\
+        \bottomrule
+    \end{tabular}\label{table:reorder} \\
+    \caption{Summary of packet reordering experiment results}\label{table:reorder}
+\end{table}
+
+\begin{figure}
+    \centering
+    \includegraphics[scale=0.6]{graphics/plot-reorder}
+    \caption{Emulated reordering vs.\ file transfer time}\label{fig:reorder}
+\end{figure}
 
 \end{document}
