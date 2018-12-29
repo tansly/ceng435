@@ -1,5 +1,5 @@
 CXX=g++
-CXXFLAGS=-std=c++17 -pthread -Wall -Wextra -O2 -DNDEBUG
+CXXFLAGS=-std=c++17 -pthread -Wall -Wextra -O2 -DNDEBUG -DVERBOSE
 LDFLAGS=$(shell pkg-config openssl --libs)
 SRCS=broker.cpp
 OBJS=$(patsubst %.cpp, %.o, $(SRCS))

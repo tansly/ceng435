@@ -312,7 +312,7 @@ void child_main(int recv_sock)
                  * XXX: Is this necessary?
                  */
                 if (final_acked) {
-#ifndef NDEBUG
+#ifdef VERBOSE
                     std::cerr << "rdt_timer_handler(): Final ACKed" << std::endl;
 #endif
                     return;
@@ -323,7 +323,7 @@ void child_main(int recv_sock)
                     auto &packet_and_len = sender_window[(i - 1) % Util::window_size];
                     auto &packet = packet_and_len.first;
                     auto &len = packet_and_len.second;
-#ifndef NDEBUG
+#ifdef VERBOSE
                     std::cerr << "RTX: " << ntohl(packet.seq_num) << std::endl;
 #endif
                     send(server.dr1_sock, &packet, len, 0);
@@ -374,11 +374,11 @@ void child_main(int recv_sock)
             if (len == Util::header_size) {
                 final_sent = true;
                 final_seq_num = ntohl(packet.seq_num);
-#ifndef NDEBUG
+#ifdef VERBOSE
                 std::cerr << "FIN: " << final_seq_num << std::endl;
 #endif
             } else {
-#ifndef NDEBUG
+#ifdef VERBOSE
                 std::cerr << "SEQ: " << ntohl(packet.seq_num) << std::endl;
 #endif
             }
@@ -401,14 +401,14 @@ void child_main(int recv_sock)
              * ACK packets are packets without a payload.
              */
             if (recv(dest_sock, &packet, Util::header_size, 0) != Util::header_size) {
-#ifndef NDEBUG
+#ifdef VERBOSE
                 std::cerr << "You done messed up." << std::endl;
 #endif
                 continue;
             }
 
             if (!packet.check_checksum(Util::header_size)) {
-#ifndef NDEBUG
+#ifdef VERBOSE
                 std::cerr << "CHECKSUM FAIL" << std::endl;
 #endif
                 continue;
@@ -421,7 +421,7 @@ void child_main(int recv_sock)
             if (final_acked || (final_sent && final_seq_num == ntohl(packet.seq_num))) {
                 final_acked = true;
                 transmission_complete.notify_one();
-#ifndef NDEBUG
+#ifdef VERBOSE
                 std::cerr << "FIN-ACK: " << ntohl(packet.seq_num) << std::endl;
 #endif
                 return;
@@ -436,7 +436,7 @@ void child_main(int recv_sock)
              * UPDATE2: Now checking it.
              */
             base = std::max(base, ntohl(packet.seq_num) + 1);
-#ifndef NDEBUG
+#ifdef VERBOSE
             std::cerr << "ACK: " << ntohl(packet.seq_num) << std::endl;
 #endif
             if (base == next_seq_num) {
@@ -472,7 +472,7 @@ void child_main(int recv_sock)
              * The content of the packet.payload does not matter, it will not be read anyways.
              */
             source_finished = true;
-#ifndef NDEBUG
+#ifdef VERBOSE
             std::cerr << "recv(source) returned 0" << std::endl;
 #endif
         } else if (recved == -1) {
@@ -483,7 +483,7 @@ void child_main(int recv_sock)
                  *
                  * In this case, we just continue to recv().
                  */
-#ifndef NDEBUG
+#ifdef VERBOSE
                 perror("child_main()");
 #endif
                 continue;
