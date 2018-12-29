@@ -194,3 +194,118 @@ ssh b_geni\
 
 Then, we run the relevant script for the experiment and then run our server codes
 as explained in the How to run section.
+
+## Automating the experiments
+Manually starting each node for each run over and over again would be a tiresome
+task that could potentially take lots of hours. To automate the process, we used
+the following systemd service files and shell script. The systemd service files should
+be placed under `~/.config/systemd/user/`, with names `broker-script.service`
+and `dest-script.service` for the broker and the destination, respectively.
+
+```
+[Unit]
+Description=Experiment script
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/users/yagmuroy/broker/broker.out
+Restart=never
+```
+
+```
+[Unit]
+Description=Experiment script
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStartPre=/bin/rm -f /users/yagmuroy/payload
+ExecStart=/usr/bin/python3 /users/yagmuroy/dest.py
+ExecStopPost=/usr/bin/md5sum /users/yagmuroy/payload
+Restart=never
+```
+
+```
+#!/usr/bin/env bash
+
+# Loss tests
+./del_tc.sh
+./set_loss.sh 0.5
+for i in {1..20}; do
+    ssh b_geni -- systemctl --user restart broker-script.service
+    ssh d_geni -- systemctl --user restart dest-script.service
+    ssh s_geni -- /usr/bin/time -f"%e" ./source.sh file 2>>./data/loss_1.txt
+done
+
+./del_tc.sh
+./set_loss.sh 10
+for i in {1..20}; do
+    ssh b_geni -- systemctl --user restart broker-script.service
+    ssh d_geni -- systemctl --user restart dest-script.service
+    ssh s_geni -- /usr/bin/time -f"%e" ./source.sh file 2>>./data/loss_2.txt
+done
+
+./del_tc.sh
+./set_loss.sh 20
+for i in {1..20}; do
+    ssh b_geni -- systemctl --user restart broker-script.service
+    ssh d_geni -- systemctl --user restart dest-script.service
+    ssh s_geni -- /usr/bin/time -f"%e" ./source.sh file 2>>./data/loss_3.txt
+done
+
+# Corruption tests
+./del_tc.sh
+./set_corrupt.sh 0.2
+for i in {1..20}; do
+    ssh b_geni -- systemctl --user restart broker-script.service
+    ssh d_geni -- systemctl --user restart dest-script.service
+    ssh s_geni -- /usr/bin/time -f"%e" ./source.sh file 2>>./data/corrupt_1.txt
+done
+
+./del_tc.sh
+./set_corrupt.sh 10
+for i in {1..20}; do
+    ssh b_geni -- systemctl --user restart broker-script.service
+    ssh d_geni -- systemctl --user restart dest-script.service
+    ssh s_geni -- /usr/bin/time -f"%e" ./source.sh file 2>>./data/corrupt_2.txt
+done
+
+./del_tc.sh
+./set_corrupt.sh 20
+for i in {1..20}; do
+    ssh b_geni -- systemctl --user restart broker-script.service
+    ssh d_geni -- systemctl --user restart dest-script.service
+    ssh s_geni -- /usr/bin/time -f"%e" ./source.sh file 2>>./data/corrupt_3.txt
+done
+
+# Reorder tests
+./del_tc.sh
+./set_reorder.sh 1
+for i in {1..20}; do
+    ssh b_geni -- systemctl --user restart broker-script.service
+    ssh d_geni -- systemctl --user restart dest-script.service
+    ssh s_geni -- /usr/bin/time -f"%e" ./source.sh file 2>>./data/reorder_1.txt
+done
+
+./del_tc.sh
+./set_reorder.sh 10
+for i in {1..20}; do
+    ssh b_geni -- systemctl --user restart broker-script.service
+    ssh d_geni -- systemctl --user restart dest-script.service
+    ssh s_geni -- /usr/bin/time -f"%e" ./source.sh file 2>>./data/reorder_2.txt
+done
+
+./del_tc.sh
+./set_reorder.sh 35
+for i in {1..20}; do
+    ssh b_geni -- systemctl --user restart broker-script.service
+    ssh d_geni -- systemctl --user restart dest-script.service
+    ssh s_geni -- /usr/bin/time -f"%e" ./source.sh file 2>>./data/reorder_3.txt
+done
+```
+
+The script was run on my home server overnight. It took more than 10 hours
+to collect enough data.
