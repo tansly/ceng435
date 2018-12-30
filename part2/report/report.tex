@@ -307,6 +307,18 @@ The calculation of actual reordering percentage and a formal definition of the
 ``lucky cases'' would require rigorous statistical analysis and is beyond the scope
 of this document.
 
+One could argue that our ``lucky cases'' mean that we are not effectively using the
+link capacities and wasting time waiting for acknowledgement packets. They would
+suggest using a larger window size to improve the efficiency of the transmission pipeline.
+We would aggree that our window size may not be optimal for all cases.
+However, one should note that there is not a cure-all window size value for all cases;
+that is why most protocols out there use dynamic window control. Our protocol doesn't;
+it uses a fixed window size pre-optimized for the specific topology used in our experiments
+and for high loss/high corruption scenarios. It can be modified to use
+any window size by modifying a constant in util.hpp of the broker.
+Features like dynamic windowing may also be implemented without making breaking changes to
+the high-level description of the protocol.
+
 \begin{table}
     \centering
     \begin{tabular}{c c c c}
