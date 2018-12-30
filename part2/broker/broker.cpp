@@ -357,6 +357,12 @@ void child_main(int recv_sock)
 
             std::unique_lock<std::mutex> window_lock {window_mutex};
 
+#ifdef VERBOSE
+            if (!(ntohl(packet.seq_num) < base + Util::window_size)) {
+                std::cerr << "SENDER WINDOW FULL" << std::endl;
+            }
+#endif
+
             window_not_full.wait(window_lock, [&]{return ntohl(packet.seq_num) < base + Util::window_size;});
 
             sender_window[(ntohl(packet.seq_num) - 1) % Util::window_size] = packet_and_len;
