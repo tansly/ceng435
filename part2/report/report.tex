@@ -119,8 +119,7 @@ in high loss and high corruption scenarios.
 The reason is that when there is high loss in the link, it is not beneficial to
 send more packets quickly back to back because there will eventually be a lost packet and
 the window would have to be resent again. However, if we provide redundancy by sending a
-single packet over both links in parallel, we provide redundancy and increase the
-reliability this way.
+single packet over both links in parallel, we increase reliability substantially and compensate for the time lost.
 
 \section{Experiments}
 
@@ -138,7 +137,10 @@ For the packet loss tests we have set the loss and delay properties of the links
 For each of the scenarios above, 23 samples were collected.
 
 Table~\ref{table:loss} summarizes our experiment results with 95\% confidence intervals.
-Figure~\ref{fig:loss} illustrates the results graphically.
+Figure~\ref{fig:loss} illustrates the results graphically. 
+
+Introducing packet loss to our experiment considerably increases the file transfer time of our 5MB file. This is highly due to Go-Back-N protocol we implemented as the core idea of our reliable data transfer protocol. Since Destination does not employ a packet buffer window, if the packet expected by Destination is lost, the following packets are also discarded by the Destination. This means that our system is highly susceptible to packet loss. In acknowledge of this, we have implemented couple of mechanisms to counter it to an extend. First of all, Broker utilises multihoming strategy to send the same packet over both routers. Our experiments has shown that we can transfer the same file faster this way. Second, we use cumulative ACKs, meaning loss of an ACK message can be compensated by the one following it. Still, as the percentage of the lost packages increases, timer in Broker expires more often, and many cases where the window is resent more than once has occurred.
+
 \begin{table}
     \centering
     \begin{tabular}{c c c c}
@@ -170,6 +172,9 @@ For each of the scenarios above, 23 samples were collected.
 
 Table~\ref{table:corruption} summarizes our experiment results with 95\% confidence intervals.
 Figure~\ref{fig:corruption} illustrates the results graphically.
+
+Corrupted packets handled a bit differently than the lost packets in our protocol. When a corrupted packet is received, first of all, integrity of its content is checked. We do this using MD5 Checksum. If a corrupted packet is found it is discarded and an ACK message indicating the expected SEQ number of Destination is sent to Broker. We believe the description of netem/tc corrupt command is helpful in explaining why the corrupted packet test takes substantially less time to transfer file compared to the packet loss test. "Allows the emulation of random noise introducing an error in a random position for a chosen percent  of packets." indicates that some percent of the packets are being corrupted each pass through a link. But unlike the case in packet loss, same packets can be corrupted more than once, resulting with more intact packets reaching Destination.
+
 \begin{table}
     \centering
     \begin{tabular}{c c c c}
@@ -201,6 +206,9 @@ For each of the scenarios above, 22 samples were collected.
 
 Table~\ref{table:reorder} summarizes our experiment results with 95\% confidence intervals.
 Figure~\ref{fig:reorder} illustrates the results graphically.
+
+This was the hardest experiment for us to interpret. Even though we increased the reordering percentage, overall time it took to transfer the data is effected relatively small. We also could not find a clear explanation of the netem/tc reorder command. But we believe that since the bottleneck for our RDT protocol is the arrival of the packet with expected SEQ number, as long as it is not received in order, reordering of the remaining packets do not matter.
+
 \begin{table}
     \centering
     \begin{tabular}{c c c c}
