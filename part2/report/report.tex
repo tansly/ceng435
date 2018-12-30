@@ -8,6 +8,7 @@
 \usepackage{listings}
 \usepackage{textcomp}
 \usepackage{xcolor}
+\usepackage{url}
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 \begin{document}
@@ -207,7 +208,104 @@ For each of the scenarios above, 22 samples were collected.
 Table~\ref{table:reorder} summarizes our experiment results with 95\% confidence intervals.
 Figure~\ref{fig:reorder} illustrates the results graphically.
 
-This was the hardest experiment for us to interpret. Even though we increased the reordering percentage, overall time it took to transfer the data is effected relatively small. We also could not find a clear explanation of the netem/tc reorder command. But we believe that since the bottleneck for our RDT protocol is the arrival of the packet with expected SEQ number, as long as it is not received in order, reordering of the remaining packets do not matter.
+This was the hardest experiment for us to interpret.
+Even though we increased the reordering percentage, overall time it took to transfer the data is effected relatively small.
+We needed a clear understanding of the reordering mechanism implemented by NetEm
+and the behaviour of our protocol under experiment conditions.
+NetEm documentation wasn't comprehensive enough, so we inspected its source code
+inside the kernel.\footnote{\url{https://github.com/torvalds/linux/blob/195303136f192d37b89e20a8d1d2670d0d825266/net/sched/sch_netem.c#L530-L592}}
+We found out that in order to emulate packet reordering, NetEm sends some of the packets
+that are enqueued immediately i.e.\ without waiting for the emulation delay;
+the rest of the packets are delayed according to the emulation delay value.
+
+In order to inspect the behaviour of our protocol in detail, we ran additional
+experiments with different delay/reorder value combinations
+and inspected the traffic using tcpdump and Wireshark.
+We also increased the verbosity of our broker code and made it report more events
+than it used to do, such as the cases where the sender thread sleeps because
+the window is full.
+
+In the light of our findings, we can elucidate our experimental results as follows.
+In order for NetEm to reorder packets, it is obvious that we must be generating
+packets with a period shorter than the emulation delay. This is because the way
+NetEm reordering works as explained above. Let us elaborate with an example using
+solid values. Without loss of generality, let us assume that:
+\begin{itemize}
+    \item
+        Emulation delay is set to 3 milliseconds.
+    \item
+        All other delays (actual delays of the links, processing time of our applications,
+        delays caused by the kernel processing the packets etc.) are negligible.
+    \item
+        We generate two packets and pass them to kernel space with 1 millisecond
+        in between.
+    \item
+        The first packet is chosen by the random number generator to be delayed
+        (for the duration of the emulation delay value) and the second packet is
+        sent immediately.
+\end{itemize}
+In this scenario, while the first packet is waiting for its 3 milliseconds to elapse,
+the second packet comes, and is sent immediately. The first packet still has
+2 milliseconds to wait. There is an out of order delivery.
+
+Now, let us consider another example. Without loss of generality, let us assume that:
+\begin{itemize}
+    \item
+        Emulation delay is set to 3 milliseconds.
+    \item
+        All other delays (actual delays of the links, processing time of our applications,
+        delays caused by the kernel processing the packets etc.) are negligible.
+    \item
+        We generate two packets and pass them to kernel space with 5 milliseconds
+        in between.
+    \item
+        The first packet is chosen by the random number generator to be delayed
+        (for the duration of the emulation delay value) and the second packet is
+        sent immediately.
+\end{itemize}
+The first packet waits for 3 milliseconds and is sent. The second packet is yet to
+be generated. Since the first packet is already sent, the second packet can not reach
+the destination before the first one. One can generalize this example to our scenario
+with multiple links; the conclusion is the same:
+For each topology, for each value of emulation delay, there exists a packet
+generation period threshold such that when exceeded, it is impossible for NetEm to reorder
+the packets.
+
+Turning back to our experiments and traffic inspection, we saw that we occasionally
+hit ``lucky cases'' where we fill the sender window\footnote{In increased verbosity mode,
+i.e.\ when compiled with -DVERBOSE, broker reports when this happens.}
+before we are affected by packet reordering, in which case receipt of ACK
+messages become a bottleneck and slow us down to a level where NetEm no longer
+can reorder our packets.\footnote{This claim was also tested and proved to be true with the help
+of our traffic analysis using Wireshark.} To sum up, a 35\% reordering does not
+mean that NetEm reorders 35\% of all of our packets. It only reorders some packets
+until we get ``lucky'' and fill the sender window, then it does not have any effect
+besides introducing some jitter into the links.
+
+High standard deviation of the
+35\% reordering case should also be clear now. Sometimes we get ``lucky'' pretty quickly
+and send the whole file without being affected by NetEm reordering at all. Inspecting the raw
+data at \url{https://gist.github.com/tansly/410088509264e99c8534a2d38571cb63}, one can see that
+the minimum transmission time is about 89 seconds.
+The runs that took about 89 seconds (which is close to the mean baseline\footnote{No NetEm delay, loss, corruption or reordering}
+transmission time of our protocol) are the ones that we fill the window in the beginning without
+being affected by reordering. When we do not get ``lucky'', however, the run takes much longer,
+sometimes more than 120 seconds.
+
+10\% reordering only slightly increased the mean, but substantially increased the standard deviation.
+Again, the actual reordering percentage is a lot less than 10\%, so the increase in the
+mean is minimal, however there are some cases where we are affected by the reordering
+in the beginning and therefore the filling of the window is delayed. Raw data
+is available at \url{https://gist.github.com/tansly/7f882a86635789a2c4f357a75e031bb8};
+one can see the cases that took slightly longer time.
+
+We did not observe any affect of 1\% reordering. The explanation is the same, though.
+The actual chance of reordering in total is a lot less than 1\%. Raw data is avaliable at
+\url{https://gist.github.com/tansly/efa83c9b0263ce7e9e6b1bc887fb8f68}.
+
+The calculation of actual reordering percentage and a formal definition of the
+``lucky cases'' would require rigorous statistical analysis and is beyond the scope
+of this document.
 
 \begin{table}
     \centering
